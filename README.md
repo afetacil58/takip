@@ -142,4 +142,17 @@ Elle test etmek isterseniz terminalden doğrudan `python send_reminders.py` çal
 - Şifre sıfırlama e-postayla değil, sadece admin üzerinden yapılabiliyor (mevcut haliyle basit tutuldu).
 - İsterseniz eklenebilecekler: Excel'e dışa aktarma, dosya/ek yükleme (her ikisi de eklendi ✓).
   Bunları istediğinizde birlikte ekleyebiliriz.
-"# takip" 
+"# takip"
+### 4. Git talimatları:
+**Git Yükleme Talimatları:**
+```
+ git remote -v
+ git remote set-url origin git@github.com:afetacil58/takip.git
+ git fetch origin
+ git checkout main
+ git pull --rebase origin main
+ git status
+ git add .
+ git commit -m "Initial setup"
+ git push -u origin main
+```
