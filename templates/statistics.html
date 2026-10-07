@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}İstatistikler{% endblock %}
+{% block content %}
+<div class="page-header"><h2 class="page-title">İstatistikler</h2></div>
+
+<div class="row row-cards mb-3">
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h3 class="card-title">Öncelik Dağılımı <span class="text-secondary fw-normal">({{ priority_total }} işlem)</span></h3>
+        {% if priority_total > 0 %}
+        <div id="chart-priority" style="min-height: 240px;"></div>
+        {% else %}
+        <p class="text-secondary">Henüz işlem yok.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h3 class="card-title">Haftalık Eğilim <span class="text-secondary fw-normal">(son 8 hafta)</span></h3>
+        <div id="chart-weekly" style="min-height: 240px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h3 class="card-title">Şube Karşılaştırması <span class="text-secondary fw-normal">(toplam / tamamlanan / geciken)</span></h3>
+    {% if dept_compare %}
+    <div id="chart-dept-compare" style="min-height: {{ (dept_compare|length * 70) + 40 }}px;"></div>
+    {% else %}
+    <p class="text-secondary">Henüz veri yok.</p>
+    {% endif %}
+  </div>
+</div>
+
+<h2 class="mb-3">Sorumlu Bazında Performans</h2>
+<div class="row row-cards">
+  {% for name, counts in manager_perf.items()|sort %}
+  {% set total = counts.values()|sum %}
+  <div class="col-sm-6 col-lg-4">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="fw-medium mb-2">{{ name }}</div>
+        <div class="progress progress-sm mb-2">
+          {% for s in STATUSES %}
+          {% set pct = (counts[s] / total * 100) if total else 0 %}
+          {% if pct > 0 %}
+          <div class="progress-bar bg-{{ m.status_color(s) }}" style="width: {{ pct }}%" title="{{ s }}: {{ counts[s] }}"></div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        <div class="d-flex flex-wrap gap-2 small text-secondary">
+          <span>Bekliyor <b class="text-body">{{ counts.get('Bekliyor', 0) }}</b></span>
+          <span>Devam Ediyor <b class="text-body">{{ counts.get('Devam Ediyor', 0) }}</b></span>
+          <span>Tamamlandı <b class="text-green">{{ counts.get('Tamamlandı', 0) }}</b></span>
+          <span>Geciken <b class="text-red">{{ manager_overdue.get(name, 0) }}</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12"><p class="text-secondary">Henüz veri yok.</p></div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/tabler/js/apexcharts.min.js') }}"></script>
+{% if priority_total > 0 %}
+<script>
+new ApexCharts(document.getElementById('chart-priority'), {
+  chart: { type: 'donut', height: 240 },
+  series: [{% for p in PRIORITIES %}{{ priority_counts[p] }}{% if not loop.last %},{% endif %}{% endfor %}],
+  labels: [{% for p in PRIORITIES %}{{ p|tojson }}{% if not loop.last %},{% endif %}{% endfor %}],
+  colors: ['#adb5bd', '#4299e1', '#f59f00', '#d63939'],
+  legend: { position: 'bottom' },
+  dataLabels: { enabled: false },
+}).render();
+</script>
+{% endif %}
+
+<script>
+new ApexCharts(document.getElementById('chart-weekly'), {
+  chart: { type: 'bar', height: 240, toolbar: { show: false } },
+  series: [
+    { name: 'Oluşturulan', data: [{% for w in weeks %}{{ w.created }}{% if not loop.last %},{% endif %}{% endfor %}] },
+    { name: 'Tamamlanan', data: [{% for w in weeks %}{{ w.completed }}{% if not loop.last %},{% endif %}{% endfor %}] },
+  ],
+  xaxis: { categories: [{% for w in weeks %}{{ w.label|tojson }}{% if not loop.last %},{% endif %}{% endfor %}] },
+  colors: ['#4299e1', '#2fb344'],
+  plotOptions: { bar: { columnWidth: '55%' } },
+  legend: { position: 'bottom' },
+}).render();
+</script>
+
+{% if dept_compare %}
+<script>
+new ApexCharts(document.getElementById('chart-dept-compare'), {
+  chart: { type: 'bar', height: {{ (dept_compare|length * 70) + 40 }}, toolbar: { show: false } },
+  series: [
+    { name: 'Toplam', data: [{% for d in dept_compare %}{{ d.total }}{% if not loop.last %},{% endif %}{% endfor %}] },
+    { name: 'Tamamlanan', data: [{% for d in dept_compare %}{{ d.completed }}{% if not loop.last %},{% endif %}{% endfor %}] },
+    { name: 'Geciken', data: [{% for d in dept_compare %}{{ d.overdue }}{% if not loop.last %},{% endif %}{% endfor %}] },
+  ],
+  xaxis: { categories: [{% for d in dept_compare %}{{ d.name|tojson }}{% if not loop.last %},{% endif %}{% endfor %}] },
+  colors: ['#adb5bd', '#2fb344', '#d63939'],
+  plotOptions: { bar: { horizontal: true } },
+  legend: { position: 'bottom' },
+}).render();
+</script>
+{% endif %}
+{% endblock %}

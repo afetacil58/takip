@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aylık Faaliyet Raporu Sistemi</title>
+<style>
+:root{--bg:#f3f5f7;--card:#fff;--fg:#1c2733;--mut:#5d6b79;--bd:#d5dce3;--ac:#b3261e;--ac2:#1f4e79;--ok:#1d6b3a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14191f;--card:#1d252e;--fg:#e8edf2;--mut:#9aa8b6;--bd:#33404d;--ac:#ff7b72;--ac2:#7fb2e5;--ok:#58c37f}}
+:root[data-theme="dark"]{--bg:#14191f;--card:#1d252e;--fg:#e8edf2;--mut:#9aa8b6;--bd:#33404d;--ac:#ff7b72;--ac2:#7fb2e5;--ok:#58c37f}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 "Source Sans 3","Segoe UI",Arial,sans-serif}
+header{background:var(--ac);color:#fff;padding:14px 18px}
+header h1{margin:0;font:700 18px/1.2 Georgia,"Times New Roman",serif}
+header p{margin:2px 0 0;font-size:13px;opacity:.9}
+nav{display:flex;gap:4px;padding:10px 18px 0;border-bottom:1px solid var(--bd);background:var(--card)}
+nav button{border:0;background:none;color:var(--mut);font:600 14px inherit;padding:10px 14px;cursor:pointer;border-bottom:3px solid transparent}
+nav button.on{color:var(--fg);border-color:var(--ac)}
+main{max-width:980px;margin:0 auto;padding:18px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:16px;margin-bottom:16px}
+h2{font:700 17px Georgia,serif;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+label{display:block;font-size:13px;color:var(--mut);font-weight:600}
+input,select,textarea{width:100%;margin-top:4px;padding:8px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);color:var(--fg);font:inherit}
+textarea{min-height:64px;resize:vertical}
+.btn{background:var(--ac);color:#fff;border:0;border-radius:4px;padding:9px 16px;font:600 14px inherit;cursor:pointer}
+.btn.alt{background:none;color:var(--ac2);border:1px solid var(--ac2)}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,nav button:focus-visible{outline:2px solid var(--ac2);outline-offset:2px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{border:1px solid var(--bd);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--bg)}
+.del{background:none;border:0;color:var(--ac);cursor:pointer;font-size:16px}
+.tag{font-size:12px;padding:1px 7px;border-radius:10px;border:1px solid var(--bd);color:var(--mut)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.note{font-size:12.5px;color:var(--mut);margin:8px 0 0}
+#report{background:#fff;color:#111;padding:22px;border:1px solid var(--bd);border-radius:4px;font:14px/1.45 "Times New Roman",serif}
+#report h3{text-align:center;font-size:17px;margin:0 0 10px}
+#report h4{font-size:14.5px;margin:14px 0 6px}
+#report table{font-size:13px}#report th,#report td{border-color:#777;color:#111}#report th{background:#e8e8e8}
+#report .pb{page-break-after:always;margin-bottom:30px;border-bottom:1px dashed #aaa;padding-bottom:20px}
+#report .pb:last-child{page-break-after:auto;border:0}
+#report .sign{margin-top:20px;line-height:1.3}
+#report .foot{margin-top:24px;border-top:2px solid #b3261e;padding-top:6px;text-align:center;font-size:11.5px}
+.hide{display:none}
+@media print{header,nav,.noprint{display:none!important}body{background:#fff}main{padding:0;max-width:none}#report{border:0;padding:0}}
+</style>
+</head>
+<body>
+<header><h1>Aylık Faaliyet Raporu Sistemi</h1><p>Prototip: Personel kaydı girer, rapor otomatik oluşur.</p></header>
+<nav><button id="t1" class="on" onclick="tab(1)">Kayıt girişi</button><button id="t2" onclick="tab(2)">Aylık rapor</button></nav>
+<main>
+<section id="p1">
+<div class="card">
+<h2>Yeni faaliyet kaydı</h2>
+<div class="grid">
+<label>Birim<select id="unit" onchange="fillTypes()"><option>Bilgi Sistemleri</option><option>Eğitim Şube</option></select></label>
+<label>Faaliyet türü<select id="type"></select></label>
+<label>Tarih<input type="date" id="date"></label>
+<label>Sonuç / Durum<select id="status"><option>Tamamlandı</option><option>Devam ediyor</option><option>Rutin</option><option>Planlandı</option></select></label>
+<label id="lsess">Eğitim sayısı<input type="number" id="sess" min="1" value="1"></label>
+<label id="lppl">Katılımcı sayısı<input type="number" id="ppl" min="0" value="0"></label>
+</div>
+<label style="margin-top:12px">Açıklama<textarea id="desc" placeholder="Ne yapıldı? Kurum/yer varsa yazın."></textarea></label>
+<div class="row" style="margin-top:12px"><button class="btn" onclick="addRec()">Kaydı ekle</button><span id="msg" class="note"></span></div>
+</div>
+<div class="card">
+<h2>Kayıtlar <span class="tag" id="cnt"></span></h2>
+<div class="scroll"><table><thead><tr><th>Tarih</th><th>Birim</th><th>Tür</th><th>Açıklama</th><th>Durum</th><th>Eğitim / Kişi</th><th></th></tr></thead><tbody id="list"></tbody></table></div>
+<p class="note">Prototipte kayıtlar yalnızca bu tarayıcıda saklanır. Gerçek sistemde tüm personelin kayıtları ortak bir veritabanında toplanır. Örnek veriler Eylül 2026 raporunuzdan alınmıştır.</p>
+<button class="btn alt" onclick="exportLegacy()">JSON yedeği indir (yeni sisteme aktarım için)</button>
+</div>
+</section>
+
+<section id="p2" class="hide">
+<div class="card noprint">
+<div class="row">
+<label style="max-width:200px">Rapor dönemi<input type="month" id="month" onchange="render()"></label>
+<button class="btn" onclick="window.print()">Yazdır / PDF</button>
+<button class="btn alt" onclick="copyRep()">Kopyala (Word'e yapıştır)</button>
+<span id="cmsg" class="note"></span>
+</div>
+<div class="grid" style="margin-top:12px">
+<label>Bilgi Sistemleri: Devam eden çalışmalar<textarea id="dev1" oninput="render()">Rutin olarak personelin arıza ve yardım talepleri karşılanmaktadır.</textarea></label>
+<label>Eğitim Şube: Devam eden çalışmalar<textarea id="dev2" oninput="render()">Okul ve Afet Farkındalık Eğitimleri talep edilen ve planlanan şekilde devam etmektedir.</textarea></label>
+<label>Bilgi Sistemleri: Sorun / Çözüm önerisi<textarea id="sor1" oninput="render()"></textarea></label>
+<label>Eğitim Şube: Sorun / Çözüm önerisi<textarea id="sor2" oninput="render()"></textarea></label>
+</div>
+</div>
+<div id="report"></div>
+</section>
+</main>
+<script>
+var TYPES={"Bilgi Sistemleri":["Bakım/Onarım","Kurulum","Destek","Diğer"],
+"Eğitim Şube":["Okul Farkındalık ve Simülasyon Merkezi Eğitimi","Afet Farkındalık Eğitimleri","Enkazda Arama ve Kurtarma Eğitimi","Yangın Farkındalık Eğitimi","KBRN Eğitimi","Sivil Savunma Eğitimi","TAMP/AYDES Eğitimi"]};
+var SEED=[
+{unit:"Bilgi Sistemleri",type:"Bakım/Onarım",desc:"Afet Farkındalık Merkezi cihaz bakımı",date:"2026-09-08",status:"Tamamlandı"},
+{unit:"Bilgi Sistemleri",type:"Bakım/Onarım",desc:"Yıldızeli Tatköy Deprem İstasyonu arızası akü ömrünün bitmesinden kaynaklanıyordu; yeni aküler sonrası bakım tamamlandı.",date:"2026-09-18",status:"Tamamlandı"},
+{unit:"Bilgi Sistemleri",type:"Kurulum",desc:"Yeni başlayan personellerin telefon ve bilgisayar kurulumları yapıldı.",date:"2026-09-30",status:"Tamamlandı"},
+{unit:"Bilgi Sistemleri",type:"Destek",desc:"Eylül ayında 11 adet destek kaydı işleme alındı.",date:"2026-09-30",status:"Rutin"},
+{unit:"Eğitim Şube",type:"Okul Farkındalık ve Simülasyon Merkezi Eğitimi",desc:"",date:"2026-09-15",status:"Tamamlandı",sess:2,ppl:84},
+{unit:"Eğitim Şube",type:"Afet Farkındalık Eğitimleri",desc:"",date:"2026-09-15",status:"Tamamlandı",sess:21,ppl:514},
+{unit:"Eğitim Şube",type:"Enkazda Arama ve Kurtarma Eğitimi",desc:"5. Piyade Tugayı",date:"2026-09-09",status:"Tamamlandı",sess:1,ppl:28},
+{unit:"Eğitim Şube",type:"Yangın Farkındalık Eğitimi",desc:"",date:"2026-09-20",status:"Tamamlandı",sess:2,ppl:53},
+{unit:"Eğitim Şube",type:"KBRN Eğitimi",desc:"Tarım İl Müdürlüğü",date:"2026-09-22",status:"Tamamlandı",sess:1,ppl:47},
+{unit:"Eğitim Şube",type:"Sivil Savunma Eğitimi",desc:"Tarım İl Müdürlüğü",date:"2026-09-22",status:"Tamamlandı",sess:1,ppl:47},
+{unit:"Eğitim Şube",type:"TAMP/AYDES Eğitimi",desc:"Tarım İl Müdürlüğü",date:"2026-09-22",status:"Tamamlandı",sess:1,ppl:47}];
+var recs=[];
+function load(){try{var s=localStorage.getItem("recs");if(s)recs=JSON.parse(s)}catch(e){}if(!recs.length)recs=SEED.map(function(r,i){r.id=i+1;return r})}
+function save(){try{localStorage.setItem("recs",JSON.stringify(recs))}catch(e){}}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function fd(d){var p=d.split("-");return p[2]+"."+p[1]+"."+p[0]}
+function $(i){return document.getElementById(i)}
+function fillTypes(){var u=$("unit").value;$("type").innerHTML=TYPES[u].map(function(t){return"<option>"+esc(t)+"</option>"}).join("");var e=u==="Eğitim Şube";$("lsess").classList.toggle("hide",!e);$("lppl").classList.toggle("hide",!e)}
+function addRec(){var u=$("unit").value,d=$("date").value;if(!d){$("msg").textContent="Tarih seçin.";return}
+var r={id:Date.now(),unit:u,type:$("type").value,desc:$("desc").value.trim(),date:d,status:$("status").value};
+if(u==="Eğitim Şube"){r.sess=+$("sess").value||1;r.ppl=+$("ppl").value||0}
+recs.push(r);save();$("desc").value="";$("msg").textContent="Kayıt eklendi.";list();render()}
+function delRec(id){recs=recs.filter(function(r){return r.id!==id});save();list();render()}
+function list(){var s=recs.slice().sort(function(a,b){return b.date.localeCompare(a.date)});$("cnt").textContent=s.length+" kayıt";
+$("list").innerHTML=s.map(function(r){return"<tr><td>"+fd(r.date)+"</td><td>"+esc(r.unit)+"</td><td>"+esc(r.type)+"</td><td>"+esc(r.desc)+"</td><td>"+esc(r.status)+"</td><td>"+(r.sess?r.sess+" / "+r.ppl:"")+'</td><td><button class="del" title="Sil" aria-label="Kaydı sil" onclick="delRec('+r.id+')">×</button></td></tr>'}).join("")}
+function block(unit,title,ym,dev,sor,n){
+var rs=recs.filter(function(r){return r.unit===unit&&r.date.slice(0,7)===ym});
+var mn=new Date(ym+"-01").toLocaleDateString("tr-TR",{month:"long",year:"numeric"}).toLocaleUpperCase("tr-TR");
+var h='<div class="pb"><h3>AYLIK FAALİYET RAPORU</h3><p><b>Rapor Dönemi:</b> '+mn+'<br><b>Hazırlayan Birim:</b> Eğitim, Farkındalık ve Gönüllülük Hizmetleri Şube Müdürlüğü <b>('+title+')</b><br><b>Şube Müdürü:</b> Alper ÖZEN<br><b>Rapor Tarihi:</b> '+new Date().toLocaleDateString("tr-TR")+'</p>';
+h+='<h4>1. Genel Bilgiler</h4><p>Şube Müdürlüğünün görev alanına ilişkin çalışmalar bu rapor döneminde planlanan takvim doğrultusunda yürütülmüştür.</p><h4>2. Ay İçerisinde Yapılan Çalışmalar</h4>';
+if(!rs.length){h+="<p><i>Bu dönem için kayıt bulunamadı.</i></p>"}
+else if(unit==="Eğitim Şube"){var g={},tot=0,ts=0;rs.forEach(function(r){var o=g[r.type]||(g[r.type]={s:0,p:0,a:0,d:[],x:[]});o.s+=r.sess||0;o.p+=r.ppl||0;o.d.push(r.date);if(r.desc&&o.x.indexOf(r.desc)<0)o.x.push(r.desc)});
+h+='<table><tr><th>No</th><th>Faaliyet / İşlem</th><th>Açıklama</th><th>Tarih</th><th>Katılımcı</th></tr>';var i=0;
+Object.keys(g).forEach(function(k){var o=g[k];o.d.sort();i++;tot+=o.p;ts+=o.s;h+="<tr><td>"+i+"</td><td>"+esc(k)+"</td><td>Ay içerisinde yapılan eğitim sayısı: "+o.s+(o.x.length?" ("+esc(o.x.join(", "))+")":"")+"</td><td>"+fd(o.d[0])+(o.d.length>1&&o.d[0]!==o.d[o.d.length-1]?" – "+fd(o.d[o.d.length-1]):"")+"</td><td>"+o.p+" kişi</td></tr>"});
+h+='<tr><td colspan="3"></td><td><b>TOPLAM</b></td><td><b>'+tot+" kişi ("+ts+" eğitim)</b></td></tr></table>"}
+else{rs.sort(function(a,b){return a.date.localeCompare(b.date)});h+='<table><tr><th>No</th><th>Faaliyet / İşlem</th><th>Açıklama</th><th>Tarih</th><th>Sonuç / Durum</th></tr>';
+rs.forEach(function(r,i){h+="<tr><td>"+(i+1)+"</td><td>"+esc(r.type)+"</td><td>"+esc(r.desc)+"</td><td>"+fd(r.date)+"</td><td>"+esc(r.status)+"</td></tr>"});h+="</table>"}
+h+='<h4>3. Devam Eden Çalışmalar</h4><p>'+(esc(dev).replace(/\n/g,"<br>")||"-")+'</p><h4>4. Sorunlar ve Çözüm Önerileri</h4><p>'+(esc(sor).replace(/\n/g,"<br>")||"Bu dönemde bildirilen sorun bulunmamaktadır.")+'</p>';
+h+='<h4>5. Ay Sonu Genel Değerlendirme</h4><p>Bu rapor döneminde şube müdürlüğü tarafından yürütülen çalışmalar genel olarak başarıyla tamamlanmış olup, devam eden projelerin sonraki ayda sonuçlandırılması planlanmaktadır.</p>';
+h+='<div class="sign"><b>Şube Müdürü</b><br>Alper ÖZEN<br>İmza</div><div class="foot">Sivas İl Afet ve Acil Durum Müdürlüğü<br>Eğriköprü Mah. Erhan Üstündağ Cad. No:1 58050 Merkez / Sivas</div></div>';return h}
+function render(){var ym=$("month").value;if(!ym)return;
+$("report").innerHTML=block("Bilgi Sistemleri","Bilgi Sistemleri",ym,$("dev1").value,$("sor1").value)+block("Eğitim Şube","Eğitim Şube",ym,$("dev2").value,$("sor2").value)}
+function copyRep(){var r=document.createRange();r.selectNodeContents($("report"));var s=getSelection();s.removeAllRanges();s.addRange(r);var ok=false;try{ok=document.execCommand("copy")}catch(e){}s.removeAllRanges();$("cmsg").textContent=ok?"Kopyalandı. Word'de yapıştırabilirsiniz.":"Kopyalanamadı. Yazdır / PDF seçeneğini kullanın."}
+function exportLegacy(){var data={version:1,exportedAt:new Date().toISOString(),records:recs,locks:{},logos:{}};var blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="aylik-faaliyet-yedegi.json";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000)}
+function tab(n){$("p1").classList.toggle("hide",n!==1);$("p2").classList.toggle("hide",n!==2);$("t1").classList.toggle("on",n===1);$("t2").classList.toggle("on",n===2);if(n===2)render()}
+load();fillTypes();$("date").value="2026-09-30";$("month").value="2026-09";list();
+</script>
+</body>
+</html>

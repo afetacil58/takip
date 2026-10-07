@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}{{ "Kayıt Girişi" if view == "entry" else "Aylık Rapor" }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div class="row align-items-center">
+    <div class="col"><h2 class="page-title">{{ "Kayıt Girişi" if view == "entry" else "Aylık Rapor" }}</h2></div>
+    {% if view == "entry" %}
+    <div class="col-auto">
+      <button type="button" class="btn btn-outline-primary" id="import-legacy">Bu tarayıcıdaki eski verileri içe aktar</button>
+    </div>
+    {% endif %}
+  </div>
+  {% if view == "entry" %}
+  <div class="text-secondary small mt-2">Prototip `file://` adresinden açıldıysa bu tarayıcı verisine erişilemez. Prototipteki “JSON yedeği indir” düğmesini kullanıp dosyayı aşağıdan seçin.</div>
+  <div class="mt-2">
+    <label class="form-label" for="legacy-file">Eski prototip JSON yedeği</label>
+    <input type="file" class="form-control" id="legacy-file" accept="application/json,.json">
+  </div>
+  {% endif %}
+</div>
+
+<div id="monthly-app"
+     data-data-url="{{ url_for('monthly_activities_data') }}"
+     data-create-url="{{ url_for('create_monthly_activity') }}"
+     data-import-url="{{ url_for('import_monthly_activities') }}"
+     data-sections-url="{{ url_for('save_monthly_sections') }}"
+     data-period-url="{{ url_for('toggle_monthly_period') }}"
+     data-preferences-url="{{ url_for('save_monthly_preferences') }}"
+     data-activities-url="{{ url_for('create_monthly_activity') }}"
+     data-selected-owner="{{ selected_owner or '' }}"
+     data-user-role="{{ user.role }}"
+     data-user-id="{{ user.id }}"
+     data-view="{{ view }}">
+  {% if user.role == 'admin' %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <label class="form-label" for="owner-filter">Şube müdürü / görünüm</label>
+      <select id="owner-filter" class="form-select">
+        <option value="">Tüm şubeler</option>
+        {% for owner in owners %}
+        <option value="{{ owner.id }}" {% if selected_owner == owner.id %}selected{% endif %}>{{ owner.department }} — {{ owner.full_name }}</option>
+        {% endfor %}
+      </select>
+      <div class="form-hint">Tüm şubeler görünümünde kayıt eklemek veya raporu onaylamak için önce bir şube müdürü seçin.</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div id="monthly-message" class="alert d-none" role="alert"></div>
+
+  <div class="card mb-3 {% if view != 'entry' %}d-none{% endif %}">
+    <div class="card-header"><h3 class="card-title" id="activity-form-title">Yeni faaliyet kaydı</h3></div>
+    <div class="card-body">
+      <form id="activity-form">
+        {% if user.role == 'admin' %}
+        <div class="mb-3">
+          <label class="form-label" for="activity-owner">Şube müdürü</label>
+          <select id="activity-owner" class="form-select" required>
+            <option value="">Şube seçin</option>
+            {% for owner in owners %}
+            <option value="{{ owner.id }}" {% if selected_owner == owner.id %}selected{% endif %}>{{ owner.department }} — {{ owner.full_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% else %}
+        <input type="hidden" id="activity-owner" value="{{ user.id }}">
+        {% endif %}
+        <div class="row">
+          <div class="col-md-3 mb-3">
+            <label class="form-label" for="activity-unit">Birim</label>
+            <select id="activity-unit" class="form-select" required>
+              {% for unit in activity_types %}
+              <option value="{{ unit }}">{{ unit }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="form-label" for="activity-type">Faaliyet türü</label>
+            <select id="activity-type" class="form-select" required></select>
+          </div>
+          <div class="col-md-2 mb-3">
+            <label class="form-label" for="activity-date">Tarih</label>
+            <input type="date" id="activity-date" class="form-control" required>
+          </div>
+          <div class="col-md-2 mb-3">
+            <label class="form-label" for="activity-status">Sonuç / Durum</label>
+            <select id="activity-status" class="form-select">
+              {% for status in ["Tamamlandı", "Devam ediyor", "Rutin", "Planlandı"] %}
+              <option>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-1 mb-3" id="sessions-field">
+            <label class="form-label" for="activity-sessions">Eğitim</label>
+            <input type="number" id="activity-sessions" class="form-control" min="0" value="1">
+          </div>
+          <div class="col-md-1 mb-3" id="participants-field">
+            <label class="form-label" for="activity-participants">Kişi</label>
+            <input type="number" id="activity-participants" class="form-control" min="0" value="0">
+          </div>
+        </div>
+        <div class="row" id="education-details">
+          <div class="col-md-4 mb-3">
+            <label class="form-label" for="activity-institution">Kurum / Yer</label>
+            <input type="text" id="activity-institution" class="form-control" maxlength="500">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label" for="activity-group">Katılımcı grubu</label>
+            <select id="activity-group" class="form-select">
+              <option value="">Seçiniz</option>
+              <option>Öğrenci</option><option>Kamu personeli</option><option>Gönüllü</option>
+              <option>Asker / Güvenlik</option><option>Vatandaş</option><option>Diğer</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="activity-description">Açıklama</label>
+          <textarea id="activity-description" class="form-control" rows="2" maxlength="10000"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" id="activity-submit">Kaydı ekle</button>
+        <button type="button" class="btn btn-link d-none" id="activity-cancel">Vazgeç</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card mb-3 {% if view != 'entry' %}d-none{% endif %}">
+    <div class="card-header"><h3 class="card-title">Faaliyet kayıtları <span class="text-secondary fw-normal" id="activity-count"></span></h3></div>
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table">
+        <thead><tr><th>Tarih</th><th>Şube</th><th>Birim</th><th>Tür</th><th>Açıklama</th><th>Durum</th><th>Eğitim / Kişi</th><th></th></tr></thead>
+        <tbody id="activity-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mb-3 {% if view != 'report' %}d-none{% endif %}">
+    <div class="card-header"><h3 class="card-title">Aylık rapor</h3></div>
+    <div class="card-body d-print-none">
+      <div class="row align-items-end g-2">
+        <div class="col-auto">
+          <label class="form-label" for="report-month">Rapor dönemi</label>
+          <input type="month" id="report-month" class="form-control">
+        </div>
+        <div class="col-auto">
+          <button type="button" class="btn btn-outline-secondary" id="print-report">Yazdır / PDF</button>
+          <button type="button" class="btn btn-outline-secondary" id="copy-report">Word'e kopyala</button>
+          <button type="button" class="btn btn-outline-primary" id="toggle-approval">Ayı onayla ve kilitle</button>
+        </div>
+        <div class="col-12"><span class="text-secondary small" id="approval-status"></span></div>
+      </div>
+      <div class="row mt-3" id="report-settings">
+        {% for unit in activity_types %}
+        <div class="col-lg-4 mb-3">
+          <label class="form-label">{{ unit }}: Devam eden çalışmalar</label>
+          <textarea class="form-control report-ongoing" data-unit="{{ unit }}" rows="3"></textarea>
+        </div>
+        <div class="col-lg-4 mb-3">
+          <label class="form-label">{{ unit }}: Sorun / Çözüm önerisi</label>
+          <textarea class="form-control report-issues" data-unit="{{ unit }}" rows="3"></textarea>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Sol logo</label><input type="file" class="form-control" id="left-logo-file" accept="image/*">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Sağ logo</label><input type="file" class="form-control" id="right-logo-file" accept="image/*">
+        </div>
+      </div>
+      <span class="text-secondary small" id="copy-message"></span>
+    </div>
+    <div class="card-body pt-0">
+      <div id="monthly-report"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='monthly.js') }}"></script>
+{% endblock %}

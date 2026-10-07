@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Şube Müdürleri{% endblock %}
+{% block content %}
+<div class="page-header"><h2 class="page-title">Şube Müdürleri</h2></div>
+
+<div class="row row-cards">
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Yeni Şube Müdürü Ekle</h3></div>
+      <div class="card-body">
+        <form method="post">
+          <div class="mb-3"><label class="form-label">Ad Soyad</label><input type="text" name="full_name" class="form-control" required></div>
+          <div class="mb-3"><label class="form-label">Şube</label><input type="text" name="department" class="form-control" required placeholder="Örn: Planlama ve Zarar Azaltma Şube Müdürlüğü"></div>
+          <div class="mb-3"><label class="form-label">Kullanıcı Adı</label><input type="text" name="username" class="form-control" required></div>
+          <div class="mb-3"><label class="form-label">E-posta (bildirim için)</label><input type="email" name="email" class="form-control" placeholder="ornek@afad.gov.tr"></div>
+          <div class="mb-3"><label class="form-label">Geçici Şifre</label><input type="text" name="password" class="form-control" required placeholder="İlk girişte değiştirmesini isteyin"></div>
+          <button type="submit" class="btn btn-primary w-100">Ekle</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead><tr><th>Ad Soyad</th><th>Şube</th><th>Kullanıcı Adı</th><th>E-posta</th><th>Durum</th><th colspan="2"></th></tr></thead>
+          <tbody>
+            {% for mgr in managers %}
+            <tr>
+              <td>{{ mgr.full_name }}</td>
+              <td>{{ mgr.department }}</td>
+              <td>{{ mgr.username }}</td>
+              <td>{{ mgr.email or "-" }}</td>
+              <td>{% if mgr.is_active %}<span class="badge bg-green-lt">Aktif</span>{% else %}<span class="badge bg-secondary-lt">Pasif</span>{% endif %}</td>
+              <td><a href="{{ url_for('edit_user', user_id=mgr.id) }}" class="btn btn-sm btn-outline-primary">Düzenle</a></td>
+              <td>
+                <form method="post" action="{{ url_for('toggle_user', user_id=mgr.id) }}">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary">{% if mgr.is_active %}Pasifleştir{% else %}Aktifleştir{% endif %}</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-secondary py-4">Henüz şube müdürü eklenmedi.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

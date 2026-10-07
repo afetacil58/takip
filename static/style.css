@@ -1,0 +1,33 @@
+/* AFAD kurumsal renk override'ı — Tabler'ın hazır "orange" temasının üzerine
+   tam AFAD turuncu-kırmızısını (#c8102e) uygular. Bileşenlerin geri kalanı
+   (kartlar, tablolar, formlar, rozetler) doğrudan Tabler'dan gelir. */
+[data-bs-theme-primary="orange"] {
+  --tblr-primary: #c8102e;
+  --tblr-primary-rgb: 200, 16, 46;
+}
+
+.monthly-report-page {
+  background: #fff;
+  color: #111;
+  font: 14px/1.45 "Times New Roman", serif;
+  padding: 22px;
+  border: 1px solid #d5dce3;
+  margin-bottom: 1rem;
+}
+.monthly-report-page h3 { text-align: center; font-size: 17px; margin: 0; }
+.monthly-report-page h4 { font-size: 14px; margin: 14px 0 6px; }
+.monthly-report-page table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.monthly-report-page th, .monthly-report-page td { border: 1px solid #777; color: #111; padding: 6px 8px; }
+.monthly-report-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.monthly-logo, .monthly-logo-placeholder { width: 88px; height: 72px; object-fit: contain; }
+.monthly-logo-placeholder { display: flex; align-items: center; justify-content: center; border: 1px dashed #999; color: #777; font-size: 11px; }
+.monthly-sign { margin-top: 28px; line-height: 1.4; text-align: center; }
+.monthly-footer { margin-top: 24px; padding-top: 6px; border-top: 2px solid #b3261e; text-align: center; font-size: 11.5px; }
+
+@media print {
+  body * { visibility: hidden !important; }
+  #monthly-report, #monthly-report * { visibility: visible !important; }
+  #monthly-report { position: absolute; inset: 0; width: 100%; }
+  .monthly-report-page { page-break-after: always; border: 0; margin: 0; }
+  .monthly-report-page:last-child { page-break-after: auto; }
+}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Düzenle — {{ admin_user.full_name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('admins') }}" class="text-secondary">← Yöneticilere dön</a>
+<div class="row justify-content-center mt-2">
+  <div class="col-12 col-lg-6">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Yöneticiyi Düzenle</h2></div>
+      <div class="card-body">
+        <form method="post">
+          <div class="mb-3"><label class="form-label">Ad Soyad</label><input type="text" name="full_name" class="form-control" required value="{{ admin_user.full_name }}"></div>
+          <div class="mb-3"><label class="form-label">Kullanıcı Adı</label><input type="text" name="username" class="form-control" required value="{{ admin_user.username }}"></div>
+          <div class="mb-3"><label class="form-label">Yeni Şifre (opsiyonel)</label><input type="text" name="password" class="form-control" placeholder="Boş bırakırsan şifre değişmez"></div>
+          <button type="submit" class="btn btn-primary">Kaydet</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
