@@ -80,7 +80,7 @@ Docker motoru oturumlar arasında ortaktır; her worktree'nin Compose projesi ve
 
 ### Windows Server / IIS
 
-Windows Server üzerinde IIS ile yayınlamak için `winserver/` klasöründeki paketi kullanın. Python 3.12, Windows bağımlılıkları ve HttpPlatformHandler kurucusu paket içindedir. `winserver/wwwroot/` uygulama dosyalarının IIS web köküne kopyalanmaya hazır dizinidir; kurulum ve IIS sitesi oluşturma adımları `winserver/README.md` dosyasındadır.
+Windows Server üzerinde IIS ile yayınlamak için `winserver/` klasöründeki paketi kullanın. Python 3.12, Windows bağımlılıkları ve HttpPlatformHandler kurucusu paket içindedir. Kurulum ayrı `C:\inetpub\sites\AFADTakip` dizini, `AFADTakip` uygulama havuzu ve 8085 portunda yeni `AFAD-GorevTakip` IIS sitesi oluşturur; mevcut sitenin `wwwroot` klasörüne ve binding'lerine dokunmaz. Ayrıntılı ve çakışmasız kurulum, HTTPS ve güvenlik duvarı adımları `winserver/README.md` dosyasındadır.
 
 1. Proje klasöründe uygulamayı başlatın:
    ```
