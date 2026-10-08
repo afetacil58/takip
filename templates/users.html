@@ -9,11 +9,12 @@
       <div class="card-header"><h3 class="card-title">Yeni Şube Müdürü Ekle</h3></div>
       <div class="card-body">
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3"><label class="form-label">Ad Soyad</label><input type="text" name="full_name" class="form-control" required></div>
           <div class="mb-3"><label class="form-label">Şube</label><input type="text" name="department" class="form-control" required placeholder="Örn: Planlama ve Zarar Azaltma Şube Müdürlüğü"></div>
           <div class="mb-3"><label class="form-label">Kullanıcı Adı</label><input type="text" name="username" class="form-control" required></div>
           <div class="mb-3"><label class="form-label">E-posta (bildirim için)</label><input type="email" name="email" class="form-control" placeholder="ornek@afad.gov.tr"></div>
-          <div class="mb-3"><label class="form-label">Geçici Şifre</label><input type="text" name="password" class="form-control" required placeholder="İlk girişte değiştirmesini isteyin"></div>
+          <div class="mb-3"><label class="form-label">Geçici Şifre</label><input type="password" name="password" class="form-control" minlength="4" required placeholder="İlk girişte değiştirilecek (en az 4 karakter)"></div>
           <button type="submit" class="btn btn-primary w-100">Ekle</button>
         </form>
       </div>
@@ -36,6 +37,7 @@
               <td><a href="{{ url_for('edit_user', user_id=mgr.id) }}" class="btn btn-sm btn-outline-primary">Düzenle</a></td>
               <td>
                 <form method="post" action="{{ url_for('toggle_user', user_id=mgr.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-sm btn-outline-secondary">{% if mgr.is_active %}Pasifleştir{% else %}Aktifleştir{% endif %}</button>
                 </form>
               </td>

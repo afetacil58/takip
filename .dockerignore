@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+*.db
+*.db-*
+*.db.bak*
+uploads/
+.venv/
+venv/
+tests/
+docs/
+docker/
+winserver/

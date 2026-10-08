@@ -7,6 +7,7 @@
       <div class="card-header"><h2 class="card-title">Yeni İşlem Ekle</h2></div>
       <div class="card-body">
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label class="form-label">İşlem Başlığı</label>
             <input type="text" name="title" class="form-control" required placeholder="Örn: Deprem tatbikatı raporu hazırlanması">

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <title>{% block title %}Görev Takip{% endblock %} — AFAD</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tabler/css/tabler.min.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tabler/css/tabler-themes.min.css') }}">
@@ -36,7 +37,10 @@
           <a href="{{ url_for('change_password') }}" class="dropdown-item">Şifremi Değiştir</a>
           <a href="{{ url_for('static', filename='rehber/kullanim-rehberi.pdf') }}" target="_blank" rel="noopener" class="dropdown-item">Kullanım Rehberi</a>
           <div class="dropdown-divider"></div>
-          <a href="{{ url_for('logout') }}" class="dropdown-item">Çıkış</a>
+          <form method="post" action="{{ url_for('logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="dropdown-item">Çıkış</button>
+          </form>
         </div>
       </div>
     </div>
@@ -50,9 +54,20 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Panel</a></li>
           {% if session.get('role') == 'admin' %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('users') }}">Şube Müdürleri</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('admins') }}">Yöneticiler</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('reports') }}">Raporlar</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('statistics') }}">İstatistikler</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.endpoint in ('admin_settings', 'test_admin_email', 'admins', 'edit_admin', 'toggle_admin', 'audit_log') %}active{% endif %}"
+               href="#" data-bs-toggle="dropdown" aria-expanded="false">Ayarlar</a>
+            <div class="dropdown-menu">
+              <a class="dropdown-item {% if request.endpoint in ('admin_settings', 'test_admin_email') %}active{% endif %}"
+                 href="{{ url_for('admin_settings') }}">Sistem Ayarları</a>
+              <a class="dropdown-item {% if request.endpoint in ('admins', 'edit_admin', 'toggle_admin') %}active{% endif %}"
+                 href="{{ url_for('admins') }}">Yöneticiler</a>
+              <a class="dropdown-item {% if request.endpoint == 'audit_log' %}active{% endif %}"
+                 href="{{ url_for('audit_log') }}">Denetim Kaydı</a>
+            </div>
+          </li>
           {% else %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('personnel') }}">Personelim</a></li>
           {% endif %}

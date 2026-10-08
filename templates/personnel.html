@@ -10,6 +10,7 @@
       <div class="card-header"><h3 class="card-title">Yeni Personel Ekle</h3></div>
       <div class="card-body">
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3"><label class="form-label">Ad Soyad</label><input type="text" name="full_name" class="form-control" required placeholder="Örn: Ahmet Yılmaz"></div>
           <button type="submit" class="btn btn-primary w-100">Ekle</button>
         </form>
@@ -29,6 +30,7 @@
               <td>{% if p.is_active %}<span class="badge bg-green-lt">Aktif</span>{% else %}<span class="badge bg-secondary-lt">Pasif</span>{% endif %}</td>
               <td>
                 <form method="post" action="{{ url_for('toggle_personnel', personnel_id=p.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-sm btn-outline-secondary">{% if p.is_active %}Pasifleştir{% else %}Aktifleştir{% endif %}</button>
                 </form>
               </td>

@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+uploads/
+__pycache__/
+*.py[cod]

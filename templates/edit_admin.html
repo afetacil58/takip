@@ -8,9 +8,10 @@
       <div class="card-header"><h2 class="card-title">Yöneticiyi Düzenle</h2></div>
       <div class="card-body">
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3"><label class="form-label">Ad Soyad</label><input type="text" name="full_name" class="form-control" required value="{{ admin_user.full_name }}"></div>
           <div class="mb-3"><label class="form-label">Kullanıcı Adı</label><input type="text" name="username" class="form-control" required value="{{ admin_user.username }}"></div>
-          <div class="mb-3"><label class="form-label">Yeni Şifre (opsiyonel)</label><input type="text" name="password" class="form-control" placeholder="Boş bırakırsan şifre değişmez"></div>
+          <div class="mb-3"><label class="form-label">Yeni Şifre (opsiyonel)</label><input type="password" name="password" class="form-control" minlength="4" placeholder="En az 4 karakter; değişirse sonraki girişte yenilenir"></div>
           <button type="submit" class="btn btn-primary">Kaydet</button>
         </form>
       </div>

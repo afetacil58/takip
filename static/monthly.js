@@ -43,7 +43,12 @@
   }
 
   async function request(url, method, payload) {
-    const options = { method: method || "GET", headers: {} };
+    const options = {
+      method: method || "GET",
+      headers: {
+        "X-CSRFToken": document.querySelector('meta[name="csrf-token"]').content
+      }
+    };
     if (payload !== undefined) {
       options.headers["Content-Type"] = "application/json";
       options.body = JSON.stringify(payload);

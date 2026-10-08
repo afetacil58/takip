@@ -2,6 +2,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 
 import app as core
 
@@ -11,19 +12,23 @@ class MonthlyActivityTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.original_db_path = core.DB_PATH
         self.original_upload_dir = core.UPLOAD_DIR
+        self.original_csrf_enabled = core.app.config["WTF_CSRF_ENABLED"]
+        core.app.config["WTF_CSRF_ENABLED"] = False
         core.DB_PATH = os.path.join(self.temp_dir.name, "test.db")
         core.UPLOAD_DIR = self.temp_dir.name
         core.init_db()
-        with sqlite3.connect(core.DB_PATH) as db:
-            db.executemany(
-                """INSERT INTO users
-                   (username, password_hash, full_name, role, department)
-                   VALUES (?,?,?,?,?)""",
-                [
-                    ("manager-one", "unused", "Şube Müdürü 1", "manager", "Şube 1"),
-                    ("manager-two", "unused", "Şube Müdürü 2", "manager", "Şube 2"),
-                ],
-            )
+        with closing(sqlite3.connect(core.DB_PATH)) as db:
+            with db:
+                db.executemany(
+                    """INSERT INTO users
+                       (username, password_hash, full_name, role, department)
+                       VALUES (?,?,?,?,?)""",
+                    [
+                        ("admin", "unused", "Yönetici", "admin", None),
+                        ("manager-one", "unused", "Şube Müdürü 1", "manager", "Şube 1"),
+                        ("manager-two", "unused", "Şube Müdürü 2", "manager", "Şube 2"),
+                    ],
+                )
         self.manager_one = 2
         self.manager_two = 3
         self.client = core.app.test_client()
@@ -31,6 +36,7 @@ class MonthlyActivityTests(unittest.TestCase):
     def tearDown(self):
         core.DB_PATH = self.original_db_path
         core.UPLOAD_DIR = self.original_upload_dir
+        core.app.config["WTF_CSRF_ENABLED"] = self.original_csrf_enabled
         self.temp_dir.cleanup()
 
     def login(self, user_id, role):
@@ -60,20 +66,21 @@ class MonthlyActivityTests(unittest.TestCase):
         self.assertEqual(first.json["imported"], 1)
         self.assertEqual(second.status_code, 200)
         self.assertEqual(second.json["duplicates"], 1)
-        with sqlite3.connect(core.DB_PATH) as db:
+        with closing(sqlite3.connect(core.DB_PATH)) as db:
             count = db.execute("SELECT COUNT(*) FROM monthly_activities").fetchone()[0]
         self.assertEqual(count, 1)
 
     def test_manager_cannot_read_or_change_another_managers_activity(self):
-        with sqlite3.connect(core.DB_PATH) as db:
-            db.execute(
-                """INSERT INTO monthly_activities
-                   (owner_id, client_id, unit, activity_type, activity_date, status, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?)""",
-                (self.manager_two, "other", "Bilgi Sistemleri", "Destek", "2026-09-14",
-                 "Tamamlandı", "2026-09-14", "2026-09-14"),
-            )
-            activity_id = db.execute("SELECT id FROM monthly_activities").fetchone()[0]
+        with closing(sqlite3.connect(core.DB_PATH)) as db:
+            with db:
+                db.execute(
+                    """INSERT INTO monthly_activities
+                       (owner_id, client_id, unit, activity_type, activity_date, status, created_at, updated_at)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    (self.manager_two, "other", "Bilgi Sistemleri", "Destek", "2026-09-14",
+                     "Tamamlandı", "2026-09-14", "2026-09-14"),
+                )
+                activity_id = db.execute("SELECT id FROM monthly_activities").fetchone()[0]
 
         self.login(self.manager_one, "manager")
         response = self.client.get("/monthly-activities/data")
@@ -102,15 +109,16 @@ class MonthlyActivityTests(unittest.TestCase):
         self.assertEqual(created.status_code, 409)
 
     def test_admin_can_view_all_branch_activities(self):
-        with sqlite3.connect(core.DB_PATH) as db:
-            for owner_id, client_id in ((self.manager_one, "one"), (self.manager_two, "two")):
-                db.execute(
-                    """INSERT INTO monthly_activities
-                       (owner_id, client_id, unit, activity_type, activity_date, status, created_at, updated_at)
-                       VALUES (?,?,?,?,?,?,?,?)""",
-                    (owner_id, client_id, "Bilgi Sistemleri", "Destek", "2026-09-14",
-                     "Tamamlandı", "2026-09-14", "2026-09-14"),
-                )
+        with closing(sqlite3.connect(core.DB_PATH)) as db:
+            with db:
+                for owner_id, client_id in ((self.manager_one, "one"), (self.manager_two, "two")):
+                    db.execute(
+                        """INSERT INTO monthly_activities
+                           (owner_id, client_id, unit, activity_type, activity_date, status, created_at, updated_at)
+                           VALUES (?,?,?,?,?,?,?,?)""",
+                        (owner_id, client_id, "Bilgi Sistemleri", "Destek", "2026-09-14",
+                         "Tamamlandı", "2026-09-14", "2026-09-14"),
+                    )
 
         self.login(1, "admin")
         response = self.client.get("/monthly-activities/data")
@@ -124,9 +132,9 @@ class MonthlyActivityTests(unittest.TestCase):
         report = self.client.get("/monthly-activities/report")
 
         self.assertEqual(entry.status_code, 200)
-        self.assertIn(b"Kayıt Girişi", entry.data)
+        self.assertIn("Kayıt Girişi", entry.get_data(as_text=True))
         self.assertEqual(report.status_code, 200)
-        self.assertIn(b"Aylık Rapor", report.data)
+        self.assertIn("Aylık Rapor", report.get_data(as_text=True))
 
 
 if __name__ == "__main__":

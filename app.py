@@ -4,10 +4,14 @@ import io
 import uuid
 import smtplib
 import ssl
+import hmac
+import json
+import secrets
 from email.message import EmailMessage
 from datetime import date, datetime, timedelta
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, g, flash, send_file, send_from_directory, abort, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, g, flash, send_file, send_from_directory, abort, jsonify, has_app_context
+from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from openpyxl import Workbook
@@ -32,11 +36,19 @@ EMAIL_ENABLED = bool(
 )
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "afad-gorev-takip-degistirin-bu-anahtari")
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15 MB üst sınır
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "").strip().lower()
+    in {"1", "true", "yes", "on"},
+)
+csrf = CSRFProtect(app)
 
 STATUSES = ["Bekliyor", "Devam Ediyor", "Tamamlandı", "İptal"]
 PRIORITIES = ["Düşük", "Orta", "Yüksek", "Acil"]
+MIN_PASSWORD_LENGTH = 4
 STALE_DAYS = 7  # bu kadar gündür güncellenmeyen açık işlemler "durağan" sayılır
 MONTHLY_ACTIVITY_TYPES = {
     "Bilgi Sistemleri": ["Bakım/Onarım", "Kurulum", "Destek", "Diğer"],
@@ -96,24 +108,34 @@ def allowed_file(filename):
 
 def send_email(to_addr, subject, body):
     """E-posta gönderir. Ayarlar yapılmamışsa veya adres boşsa sessizce False döner."""
-    if not EMAIL_ENABLED or not to_addr:
+    if not to_addr:
+        return False
+    settings = get_email_settings() if has_app_context() else {
+        "smtp_host": mail_cfg.SMTP_HOST,
+        "smtp_port": mail_cfg.SMTP_PORT,
+        "smtp_user": mail_cfg.SMTP_USER,
+        "smtp_password": mail_cfg.SMTP_PASSWORD,
+        "smtp_use_ssl": mail_cfg.SMTP_USE_SSL,
+        "mail_from_name": mail_cfg.FROM_NAME,
+        "email_notifications_enabled": EMAIL_ENABLED,
+    }
+    if not settings["email_notifications_enabled"]:
         return False
     try:
         msg = EmailMessage()
         msg["Subject"] = subject
-        msg["From"] = f"{mail_cfg.FROM_NAME} <{mail_cfg.SMTP_USER}>"
+        msg["From"] = f"{settings['mail_from_name']} <{settings['smtp_user']}>"
         msg["To"] = to_addr
         msg.set_content(body)
 
-        use_ssl = getattr(mail_cfg, "SMTP_USE_SSL", False)
-        if use_ssl:
-            with smtplib.SMTP_SSL(mail_cfg.SMTP_HOST, mail_cfg.SMTP_PORT, timeout=20) as server:
-                server.login(mail_cfg.SMTP_USER, mail_cfg.SMTP_PASSWORD)
+        if settings["smtp_use_ssl"]:
+            with smtplib.SMTP_SSL(settings["smtp_host"], settings["smtp_port"], timeout=20) as server:
+                server.login(settings["smtp_user"], settings["smtp_password"])
                 server.send_message(msg)
         else:
-            with smtplib.SMTP(mail_cfg.SMTP_HOST, mail_cfg.SMTP_PORT, timeout=20) as server:
+            with smtplib.SMTP(settings["smtp_host"], settings["smtp_port"], timeout=20) as server:
                 server.starttls()
-                server.login(mail_cfg.SMTP_USER, mail_cfg.SMTP_PASSWORD)
+                server.login(settings["smtp_user"], settings["smtp_password"])
                 server.send_message(msg)
         return True
     except (smtplib.SMTPException, OSError, ssl.SSLError, ValueError) as e:
@@ -121,8 +143,32 @@ def send_email(to_addr, subject, body):
         return False
 
 
+def get_email_settings():
+    """Return effective mail settings, with persisted administrator settings overriding env defaults."""
+    defaults = {
+        "smtp_host": getattr(mail_cfg, "SMTP_HOST", "smtp.gmail.com"),
+        "smtp_port": getattr(mail_cfg, "SMTP_PORT", 465),
+        "smtp_user": getattr(mail_cfg, "SMTP_USER", ""),
+        "smtp_password": getattr(mail_cfg, "SMTP_PASSWORD", ""),
+        "smtp_use_ssl": getattr(mail_cfg, "SMTP_USE_SSL", True),
+        "mail_from_name": getattr(mail_cfg, "FROM_NAME", "AFAD Görev Takip Sistemi"),
+        "base_url": getattr(mail_cfg, "BASE_URL", "http://127.0.0.1:5000"),
+        "email_notifications_enabled": EMAIL_ENABLED,
+    }
+    rows = get_db().execute("SELECT key, value FROM app_settings").fetchall()
+    settings = {**defaults, **{row["key"]: row["value"] for row in rows}}
+    settings["smtp_port"] = int(settings["smtp_port"])
+    settings["smtp_use_ssl"] = str(settings["smtp_use_ssl"]).lower() in {
+        "1", "true", "yes", "on"
+    }
+    settings["email_notifications_enabled"] = str(
+        settings["email_notifications_enabled"]
+    ).lower() in {"1", "true", "yes", "on"}
+    return settings
+
+
 def init_db():
-    first_run = not os.path.exists(DB_PATH)
+    os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     db = sqlite3.connect(DB_PATH)
     db.executescript(
@@ -134,7 +180,8 @@ def init_db():
             full_name TEXT NOT NULL,
             role TEXT NOT NULL CHECK(role IN ('admin','manager')),
             department TEXT,
-            is_active INTEGER NOT NULL DEFAULT 1
+            is_active INTEGER NOT NULL DEFAULT 1,
+            must_change_password INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS tasks (
@@ -237,20 +284,32 @@ def init_db():
             right_logo TEXT NOT NULL DEFAULT '',
             FOREIGN KEY(owner_id) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            actor_id INTEGER,
+            action TEXT NOT NULL,
+            target TEXT NOT NULL DEFAULT '{}',
+            result INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(actor_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
         """
     )
-    if first_run:
-        # Varsayılan admin (Ali - Müdür Yardımcısı) ve örnek şube müdürü
-        db.execute(
-            "INSERT INTO users (username, password_hash, full_name, role, department) VALUES (?,?,?,?,?)",
-            ("admin", generate_password_hash("degistir123", method="pbkdf2:sha256"), "Ali (Müdür Yardımcısı)", "admin", None),
-        )
-        db.commit()
-
     # Mevcut kurulumlar için otomatik geçiş: email sütunu yoksa ekle
     existing_cols = [r[1] for r in db.execute("PRAGMA table_info(users)").fetchall()]
     if "email" not in existing_cols:
         db.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        db.commit()
+    if "must_change_password" not in existing_cols:
+        db.execute(
+            "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"
+        )
         db.commit()
 
     # Mevcut kurulumlar için otomatik geçiş: progress sütunu yoksa ekle
@@ -262,6 +321,33 @@ def init_db():
     db.close()
 
 
+@app.after_request
+def record_mutation(response):
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.endpoint:
+        try:
+            target = json.dumps(request.view_args or {}, sort_keys=True)
+            db = get_db()
+            db.execute(
+                """INSERT INTO audit_log (actor_id, action, target, result, created_at)
+                   VALUES (?,?,?,?,?)""",
+                (
+                    session.get("user_id"),
+                    request.endpoint,
+                    target,
+                    response.status_code,
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
+            db.commit()
+        except sqlite3.Error:
+            app.logger.exception("Denetim kaydı yazılamadı.")
+
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    return response
+
+
 # ---------- Yardımcılar ----------
 
 def login_required(f):
@@ -269,6 +355,20 @@ def login_required(f):
     def wrapper(*args, **kwargs):
         if "user_id" not in session:
             return redirect(url_for("login"))
+        user_state = get_db().execute(
+            "SELECT is_active, must_change_password FROM users WHERE id=?",
+            (session["user_id"],),
+        ).fetchone()
+        if not user_state or not user_state["is_active"]:
+            session.clear()
+            return redirect(url_for("login"))
+        if user_state["must_change_password"] and request.endpoint not in {
+            "change_password",
+            "logout",
+        }:
+            session["must_change_password"] = True
+            return redirect(url_for("change_password"))
+        session["must_change_password"] = bool(user_state["must_change_password"])
         return f(*args, **kwargs)
     return wrapper
 
@@ -337,21 +437,102 @@ app.jinja_env.globals.update(
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    db = get_db()
+    if not db.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+        return redirect(url_for("setup"))
+
     if request.method == "POST":
         username = request.form["username"].strip()
         password = request.form["password"]
-        db = get_db()
         user = db.execute("SELECT * FROM users WHERE username=? AND is_active=1", (username,)).fetchone()
         if user and check_password_hash(user["password_hash"], password):
             session["user_id"] = user["id"]
             session["role"] = user["role"]
             session["full_name"] = user["full_name"]
+            session["must_change_password"] = bool(user["must_change_password"])
+            if session["must_change_password"]:
+                return redirect(url_for("change_password"))
             return redirect(url_for("dashboard"))
         flash("Kullanıcı adı veya şifre hatalı.", "error")
     return render_template("login.html")
 
 
-@app.route("/logout")
+@app.route("/setup", methods=["GET", "POST"])
+def setup():
+    db = get_db()
+    if db.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+        return redirect(url_for("login"))
+
+    setup_token_required = bool(os.environ.get("SETUP_TOKEN"))
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        full_name = request.form.get("full_name", "").strip()
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        setup_token = request.form.get("setup_token", "")
+
+        if setup_token_required and not hmac.compare_digest(
+            setup_token, os.environ["SETUP_TOKEN"]
+        ):
+            flash("Kurulum anahtarı hatalı.", "error")
+        elif not 3 <= len(username) <= 80:
+            flash("Kullanıcı adı 3-80 karakter arasında olmalı.", "error")
+        elif not 2 <= len(full_name) <= 120:
+            flash("Ad soyad 2-120 karakter arasında olmalı.", "error")
+        elif email and (
+            len(email) > 254 or "@" not in email or any(char.isspace() for char in email)
+        ):
+            flash("E-posta adresi geçersiz.", "error")
+        elif len(password) < MIN_PASSWORD_LENGTH:
+            flash(f"Şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı.", "error")
+        elif password != confirm_password:
+            flash("Şifreler birbiriyle uyuşmuyor.", "error")
+        else:
+            try:
+                db.execute("BEGIN IMMEDIATE")
+                if db.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+                    db.rollback()
+                    return redirect(url_for("login"))
+                cursor = db.execute(
+                    """INSERT INTO users
+                       (username, password_hash, full_name, role, department, email)
+                       VALUES (?,?,?,?,?,?)""",
+                    (
+                        username,
+                        generate_password_hash(password, method="pbkdf2:sha256"),
+                        full_name,
+                        "admin",
+                        None,
+                        email or None,
+                    ),
+                )
+                db.commit()
+            except sqlite3.IntegrityError:
+                db.rollback()
+                flash("Bu kullanıcı adı zaten kullanılıyor.", "error")
+            else:
+                setup_token_file = os.environ.get(
+                    "SETUP_TOKEN_FILE",
+                    os.path.join(os.path.dirname(DB_PATH), ".setup_token"),
+                )
+                if setup_token_required:
+                    try:
+                        os.remove(setup_token_file)
+                    except FileNotFoundError:
+                        pass
+                    except OSError as error:
+                        app.logger.warning("Kurulum anahtarı dosyası silinemedi: %s", error)
+                session.clear()
+                session["user_id"] = cursor.lastrowid
+                session["role"] = "admin"
+                session["full_name"] = full_name
+                return redirect(url_for("dashboard"))
+
+    return render_template("setup.html", setup_token_required=setup_token_required)
+
+
+@app.route("/logout", methods=["POST"])
 def logout():
     session.clear()
     return redirect(url_for("login"))
@@ -515,7 +696,7 @@ def new_task():
         db.commit()
 
         if assigned_user["email"]:
-            base_url = mail_cfg.BASE_URL if mail_cfg else ""
+            base_url = get_email_settings()["base_url"]
             body = (
                 f"Merhaba {assigned_user['full_name']},\n\n"
                 f"Size yeni bir işlem atandı:\n\n"
@@ -961,6 +1142,114 @@ def statistics():
     )
 
 
+@app.route("/audit-log")
+@login_required
+@admin_required
+def audit_log():
+    entries = get_db().execute(
+        """SELECT audit_log.*, users.full_name, users.username
+           FROM audit_log LEFT JOIN users ON users.id = audit_log.actor_id
+           ORDER BY audit_log.id DESC LIMIT 500"""
+    ).fetchall()
+    return render_template("audit_log.html", entries=entries)
+
+
+@app.route("/admin/settings", methods=["GET", "POST"])
+@login_required
+@admin_required
+def admin_settings():
+    db = get_db()
+    settings = get_email_settings()
+    if request.method == "POST":
+        smtp_host = request.form.get("smtp_host", "").strip()
+        smtp_user = request.form.get("smtp_user", "").strip()
+        smtp_password = request.form.get("smtp_password", "")
+        mail_from_name = request.form.get("mail_from_name", "").strip()
+        base_url = request.form.get("base_url", "").strip().rstrip("/")
+        use_ssl = request.form.get("smtp_use_ssl") == "true"
+        notifications_enabled = request.form.get("email_notifications_enabled") == "true"
+        try:
+            smtp_port = int(request.form.get("smtp_port", ""))
+        except ValueError:
+            smtp_port = 0
+
+        if not smtp_host or not mail_from_name or not base_url:
+            flash("SMTP sunucusu, gönderen adı ve uygulama adresi zorunludur.", "error")
+        elif not 1 <= smtp_port <= 65535:
+            flash("SMTP portu 1 ile 65535 arasında olmalıdır.", "error")
+        else:
+            current_password = settings["smtp_password"]
+            if request.form.get("clear_smtp_password") == "true":
+                effective_password = ""
+            else:
+                effective_password = smtp_password or current_password
+            if notifications_enabled and (not smtp_user or not effective_password):
+                flash(
+                    "E-posta bildirimlerini açmak için SMTP kullanıcı adı ve parolası gereklidir.",
+                    "error",
+                )
+            else:
+                saved_settings = {
+                    "smtp_host": smtp_host,
+                    "smtp_port": str(smtp_port),
+                    "smtp_user": smtp_user,
+                    "smtp_use_ssl": str(use_ssl).lower(),
+                    "mail_from_name": mail_from_name,
+                    "base_url": base_url,
+                    "email_notifications_enabled": str(notifications_enabled).lower(),
+                }
+                if smtp_password or request.form.get("clear_smtp_password") == "true":
+                    saved_settings["smtp_password"] = effective_password
+                db.executemany(
+                    "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    saved_settings.items(),
+                )
+                db.commit()
+                flash("Ayarlar kaydedildi.", "success")
+                return redirect(url_for("admin_settings"))
+        settings.update(
+            smtp_host=smtp_host,
+            smtp_port=smtp_port or settings["smtp_port"],
+            smtp_user=smtp_user,
+            smtp_use_ssl=use_ssl,
+            mail_from_name=mail_from_name,
+            base_url=base_url,
+            email_notifications_enabled=notifications_enabled,
+        )
+
+    current_admin = current_user()
+    return render_template(
+        "admin_settings.html",
+        settings=settings,
+        smtp_password_saved=bool(settings["smtp_password"]),
+        admin_email=current_admin["email"] or "",
+    )
+
+
+@app.route("/admin/settings/test-email", methods=["POST"])
+@login_required
+@admin_required
+def test_admin_email():
+    recipient = request.form.get("test_email", "").strip()
+    if not recipient or len(recipient) > 254 or "@" not in recipient or any(
+        char.isspace() for char in recipient
+    ):
+        flash("Geçerli bir test e-posta adresi girin.", "error")
+    elif send_email(
+        recipient,
+        "[Görev Takip] E-posta ayar testi",
+        "Bu ileti, AFAD Görev Takip Sistemi e-posta ayarlarınızın çalıştığını doğrular.",
+    ):
+        flash(f"Test e-postası {recipient} adresine gönderildi.", "success")
+    else:
+        flash(
+            "Test e-postası gönderilemedi. SMTP ayarlarını ve uygulama loglarını kontrol edin.",
+            "error",
+        )
+    return redirect(url_for("admin_settings"))
+
+
 @app.route("/account/password", methods=["GET", "POST"])
 @login_required
 def change_password():
@@ -974,16 +1263,19 @@ def change_password():
 
         if not check_password_hash(user["password_hash"], current_password):
             flash("Mevcut şifreniz hatalı.", "error")
-        elif len(new_password) < 4:
-            flash("Yeni şifre en az 4 karakter olmalı.", "error")
+        elif len(new_password) < MIN_PASSWORD_LENGTH:
+            flash(f"Yeni şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı.", "error")
         elif new_password != confirm_password:
             flash("Yeni şifreler birbiriyle uyuşmuyor.", "error")
         else:
             db.execute(
-                "UPDATE users SET password_hash=? WHERE id=?",
+                """UPDATE users
+                   SET password_hash=?, must_change_password=0
+                   WHERE id=?""",
                 (generate_password_hash(new_password, method="pbkdf2:sha256"), user["id"]),
             )
             db.commit()
+            session["must_change_password"] = False
             flash("Şifreniz güncellendi.", "success")
             return redirect(url_for("dashboard"))
 
@@ -1001,11 +1293,15 @@ def admins():
         password = request.form["password"]
 
         existing = db.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
-        if existing:
+        if len(password) < MIN_PASSWORD_LENGTH:
+            flash(f"Geçici şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı.", "error")
+        elif existing:
             flash("Bu kullanıcı adı zaten kayıtlı.", "error")
         else:
             db.execute(
-                "INSERT INTO users (username, password_hash, full_name, role, department) VALUES (?,?,?,?,?)",
+                """INSERT INTO users
+                   (username, password_hash, full_name, role, department, must_change_password)
+                   VALUES (?,?,?,?,?,1)""",
                 (username, generate_password_hash(password, method="pbkdf2:sha256"), full_name, "admin", None),
             )
             db.commit()
@@ -1039,8 +1335,12 @@ def edit_admin(user_id):
             return redirect(url_for("edit_admin", user_id=user_id))
 
         if new_password:
+            if len(new_password) < MIN_PASSWORD_LENGTH:
+                flash(f"Yeni şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı.", "error")
+                return redirect(url_for("edit_admin", user_id=user_id))
             db.execute(
-                "UPDATE users SET full_name=?, username=?, password_hash=? WHERE id=?",
+                """UPDATE users SET full_name=?, username=?, password_hash=?,
+                   must_change_password=1 WHERE id=?""",
                 (full_name, username, generate_password_hash(new_password, method="pbkdf2:sha256"), user_id),
             )
         else:
@@ -1131,11 +1431,15 @@ def users():
         email = request.form.get("email", "").strip()
 
         existing = db.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
-        if existing:
+        if len(password) < MIN_PASSWORD_LENGTH:
+            flash(f"Geçici şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı.", "error")
+        elif existing:
             flash("Bu kullanıcı adı zaten kayıtlı.", "error")
         else:
             db.execute(
-                "INSERT INTO users (username, password_hash, full_name, role, department, email) VALUES (?,?,?,?,?,?)",
+                """INSERT INTO users
+                   (username, password_hash, full_name, role, department, email, must_change_password)
+                   VALUES (?,?,?,?,?,?,1)""",
                 (username, generate_password_hash(password, method="pbkdf2:sha256"), full_name, "manager", department, email or None),
             )
             db.commit()
@@ -1185,8 +1489,12 @@ def edit_user(user_id):
         old_department = manager["department"]
 
         if new_password:
+            if len(new_password) < MIN_PASSWORD_LENGTH:
+                flash(f"Yeni şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı.", "error")
+                return redirect(url_for("edit_user", user_id=user_id))
             db.execute(
-                "UPDATE users SET full_name=?, department=?, username=?, password_hash=?, email=? WHERE id=?",
+                """UPDATE users SET full_name=?, department=?, username=?, password_hash=?,
+                   email=?, must_change_password=1 WHERE id=?""",
                 (full_name, department, username, generate_password_hash(new_password, method="pbkdf2:sha256"), email or None, user_id),
             )
         else:
@@ -1688,7 +1996,10 @@ def save_monthly_preferences():
     return jsonify(ok=True)
 
 
-init_db()
-
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=5000)
+    init_db()
+    app.run(
+        debug=False,
+        host=os.environ.get("APP_HOST", "127.0.0.1"),
+        port=int(os.environ.get("PORT", "5000")),
+    )

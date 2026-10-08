@@ -1,0 +1,17 @@
+67b5635e80ea51072b87941312d00ec8927c4db9ba18938f7ad2d27b328b95fb *python-3.12.10-amd64.exe
+0febd93821806cff3d508b7e8f8715611e44eb2991fa6f91a19e59e59e4bb381 *afad-gorev-takip-app.zip
+27a8bf830e9727fc273a83b990f65ed7d4c5240fbd135e88042486a59f7963a9 *install.ps1
+c5c0ebc325e04e9556fb9acd42acbc1b1d68681b3ca91d200cdd63874e4b2eef *requirements.txt
+21350948b47b808325ab1c234e4aa3439e77027e616b464398cfa1aa034c9f53 *web.config
+ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc *wheelhouse\blinker-1.9.0-py3-none-any.whl
+255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360 *wheelhouse\click-8.5.0-py3-none-any.whl
+7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa *wheelhouse\et_xmlfile-2.0.0-py3-none-any.whl
+dc5e3a4ce97f75c47bf6c1c72ad2c3b7bdf579a2ed13aebcc5d3d81fe2571160 *wheelhouse\flask_wtf-1.3.0-py3-none-any.whl
+f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c *wheelhouse\flask-3.1.3-py3-none-any.whl
+c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef *wheelhouse\itsdangerous-2.2.0-py3-none-any.whl
+85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67 *wheelhouse\jinja2-3.1.6-py3-none-any.whl
+11935df9bf455ed0c04eb87bcd720f02b1fe5e02128a9430f23aed6f93336fc7 *wheelhouse\markupsafe-3.0.4-cp312-cp312-win_amd64.whl
+5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2 *wheelhouse\openpyxl-3.1.5-py2.py3-none-any.whl
+c56d67fd6e87c2ee598b76abdd4e96cfad1f24cacdea5078d382b1f9d7b5ed2e *wheelhouse\waitress-3.0.2-py3-none-any.whl
+6392e50c78460ba618e5b21f08a71f59c99ce99cdc6cf6e3dd7e6ccca8754fab *wheelhouse\werkzeug-3.1.9-py3-none-any.whl
+72b90d5d921bd3119252069cf0301e9c13915f9e52792652bc91c5dda4b79e56 *wheelhouse\wtforms-3.2.2-py3-none-any.whl

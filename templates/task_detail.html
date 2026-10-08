@@ -11,6 +11,7 @@
     <div class="col-auto">
       <form method="post" action="{{ url_for('delete_task', task_id=task.id) }}"
             onsubmit="return confirm('Bu işlemi kalıcı olarak silmek istediğinize emin misiniz? Ekli dosyalar ve notlar da silinecek.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-outline-danger">İşlemi Sil</button>
       </form>
     </div>
@@ -36,6 +37,7 @@
     {% endif %}
 
     <form method="post" class="border-top pt-3 mt-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="row">
         <div class="col-md-6">
           <div class="mb-3">
@@ -80,6 +82,7 @@
   <div class="card-header"><h3 class="card-title">Ekli Dosyalar</h3></div>
   <div class="card-body">
     <form method="post" action="{{ url_for('upload_attachment', task_id=task.id) }}" enctype="multipart/form-data" class="row g-2 align-items-center mb-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="col-auto flex-fill"><input type="file" name="file" class="form-control" required></div>
       <div class="col-auto"><button type="submit" class="btn btn-primary">Dosya Ekle</button></div>
     </form>
@@ -112,6 +115,7 @@
         {% if user.role == 'admin' %}
         <form method="post" action="{{ url_for('delete_note', task_id=task.id, note_id=n.id) }}" class="d-print-none"
               onsubmit="return confirm('Bu notu silmek istediğinize emin misiniz?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-link text-danger btn-sm p-0">Sil</button>
         </form>
         {% endif %}
