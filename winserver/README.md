@@ -70,6 +70,8 @@ Var olan `Default Web Site`, sitelerin binding'leri, port 80/443 ve onların web
 
    Güncellemede hedef klasörde çakışan uygulama dosyaları `%ProgramData%\AFAD\Takip\backup-*` altına kopyalanır. Betik uygulama veritabanını veya yüklemeleri silmez. İlk kurulumda yazdırılan tek kullanımlık yönetici kurulum anahtarını saklayın.
 
+   Betik hata verirse hata mesajını giderip aynı komutu yeniden çalıştırabilirsiniz. Örneğin site oluşturulmadan önce yarıda kalan kurulum, uygulama işaret dosyasını kullanarak kendi oluşturduğu boşta kalan uygulama havuzunu güvenle tekrar kullanır.
+
 ### C. Uygulamaya erişim ve HTTPS
 
 1. Kurulum tamamlandığında `-HostName` vermediyseniz `http://SUNUCU-ADI:8085/setup` adresini açın; verdiyseniz `http://gorev.ornek.gov.tr:8085/setup` gibi DNS adını kullanın. Yerel testte host adı verilmemiş kurulum için `http://localhost:8085/setup` kullanılabilir.

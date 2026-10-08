@@ -97,8 +97,17 @@ if (-not $existingSite) {
     }
 }
 
+$installationMarker = Join-Path $InstallRoot "AFADTakip.install-marker"
+if (Test-Path -LiteralPath $InstallRoot -PathType Container) {
+    $existingFiles = @(Get-ChildItem -LiteralPath $InstallRoot -Force)
+    if ($existingFiles.Count -gt 0 -and -not (Test-Path -LiteralPath $installationMarker -PathType Leaf)) {
+        throw "Kurulum dizini zaten dolu ve bu uygulama için işaretlenmemiş: $InstallRoot. Mevcut dosyalar korunacak; boş/ayrı bir dizin seçin."
+    }
+}
+
 $appPoolPath = "IIS:\AppPools\$AppPoolName"
-if ((Test-Path -LiteralPath $appPoolPath) -and -not $existingSite) {
+if ((Test-Path -LiteralPath $appPoolPath) -and -not $existingSite -and
+    -not (Test-Path -LiteralPath $installationMarker -PathType Leaf)) {
     throw "IIS'te '$AppPoolName' adlı uygulama havuzu zaten var. -AppPoolName ile benzersiz bir ad seçin."
 }
 if (Test-Path -LiteralPath $appPoolPath) {
@@ -107,14 +116,6 @@ if (Test-Path -LiteralPath $appPoolPath) {
     } | Select-Object -First 1
     if ($sharedPoolSite) {
         throw "Uygulama havuzu '$AppPoolName', IIS sitesi '$($sharedPoolSite.Name)' tarafından kullanılıyor. -AppPoolName ile ayrı bir havuz adı seçin."
-    }
-}
-
-$installationMarker = Join-Path $InstallRoot "AFADTakip.install-marker"
-if (Test-Path -LiteralPath $InstallRoot -PathType Container) {
-    $existingFiles = @(Get-ChildItem -LiteralPath $InstallRoot -Force)
-    if ($existingFiles.Count -gt 0 -and -not (Test-Path -LiteralPath $installationMarker -PathType Leaf)) {
-        throw "Kurulum dizini zaten dolu ve bu uygulama için işaretlenmemiş: $InstallRoot. Mevcut dosyalar korunacak; boş/ayrı bir dizin seçin."
     }
 }
 
@@ -194,12 +195,19 @@ if ($LASTEXITCODE -ne 0) { throw "Uygulama log klasörü izinleri ayarlanamadı.
 $configPath = Join-Path $InstallRoot "web.config"
 $config = [xml](Get-Content -LiteralPath $configPath -Raw)
 $platform = $config.configuration.'system.webServer'.httpPlatform
-$platform.processPath = $venvPython
-$platform.arguments = '"' + (Join-Path $InstallRoot "winserver_server.py") + '"'
-$platform.stdoutLogFile = Join-Path $logsPath "stdout"
-$variables = @($platform.environmentVariables.environmentVariable)
-($variables | Where-Object { $_.name -eq "DATA_DIR" } |
-    Select-Object -First 1).value = $dataPath
+if (-not $platform) {
+    throw "web.config içinde HttpPlatformHandler ayarı bulunamadı."
+}
+$dataDirectoryVariable = $platform.SelectSingleNode(
+    "environmentVariables/environmentVariable[@name='DATA_DIR']"
+)
+if (-not $dataDirectoryVariable) {
+    throw "web.config içinde DATA_DIR ayarı bulunamadı."
+}
+$platform.SetAttribute("processPath", $venvPython)
+$platform.SetAttribute("arguments", '"' + (Join-Path $InstallRoot "winserver_server.py") + '"')
+$platform.SetAttribute("stdoutLogFile", (Join-Path $logsPath "stdout"))
+$dataDirectoryVariable.SetAttribute("value", $dataPath)
 $config.Save($configPath)
 
 $env:DATA_DIR = $dataPath
