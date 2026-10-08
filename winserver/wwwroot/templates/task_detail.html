@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ task.title }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('dashboard') }}" class="text-secondary d-print-none">← Panele dön</a>
+
+<div class="page-header d-print-none">
+  <div class="row align-items-center">
+    <div class="col"><h2 class="page-title">{{ task.title }}</h2></div>
+    {% if user.role == 'admin' %}
+    <div class="col-auto">
+      <form method="post" action="{{ url_for('delete_task', task_id=task.id) }}"
+            onsubmit="return confirm('Bu işlemi kalıcı olarak silmek istediğinize emin misiniz? Ekli dosyalar ve notlar da silinecek.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-danger">İşlemi Sil</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-3 mb-3 small text-secondary">
+      <span><b class="text-body">Şube:</b> {{ task.department or "-" }}</span>
+      <span><b class="text-body">Sorumlu:</b> {{ task.assigned_name }}</span>
+      {% if assigned_personnel %}<span><b class="text-body">Sorumlu Personel:</b> {{ assigned_personnel|map(attribute='full_name')|join(', ') }}</span>{% endif %}
+      <span><b class="text-body">Öncelik:</b> {{ m.priority_badge(task.priority) }}</span>
+      <span><b class="text-body">Oluşturulma:</b> {{ task.created_at }}</span>
+      {% if task.due_date %}<span><b class="text-body">Termin:</b> {{ task.due_date }}{% if is_overdue(task) %} <span class="text-red fw-bold">gecikti</span>{% endif %}</span>{% endif %}
+    </div>
+    {% if is_stale(task) and not is_overdue(task) %}
+    <div class="alert alert-warning">Bu işlem {{ days_since_update(task) }} gündür güncellenmedi. Güncel durumu teyit edin.</div>
+    {% endif %}
+    {% if task.description %}
+    <p class="bg-secondary-lt p-3 rounded">{{ task.description }}</p>
+    {% endif %}
+
+    <form method="post" class="border-top pt-3 mt-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row">
+        <div class="col-md-6">
+          <div class="mb-3">
+            <label class="form-label">Durum</label>
+            <select name="status" class="form-select">
+              {% for s in STATUSES %}
+              <option value="{{ s }}" {% if s == task.status %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="mb-3">
+            <label class="form-label">İlerleme (%)</label>
+            <input type="number" name="progress" class="form-control" min="0" max="100" step="5" value="{{ task.progress }}">
+          </div>
+        </div>
+      </div>
+      {% if user.role == 'manager' and personnel_options %}
+      <div class="mb-3">
+        <label class="form-label">Sorumlu Personel (opsiyonel, birden fazla seçilebilir)</label>
+        <div class="divide-y">
+          {% for p in personnel_options %}
+          <label class="form-check my-1">
+            <input class="form-check-input" type="checkbox" name="personnel_ids" value="{{ p.id }}" {% if p.id in assigned_personnel_ids %}checked{% endif %}>
+            <span class="form-check-label">{{ p.full_name }}{% if not p.is_active %} (pasif){% endif %}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      <div class="mb-3">
+        <label class="form-label">Not ekle (opsiyonel)</label>
+        <textarea name="note" class="form-control" rows="2" placeholder="Yapılan işlem, gecikme sebebi vb."></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Güncelle</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-3 d-print-none">
+  <div class="card-header"><h3 class="card-title">Ekli Dosyalar</h3></div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('upload_attachment', task_id=task.id) }}" enctype="multipart/form-data" class="row g-2 align-items-center mb-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-auto flex-fill"><input type="file" name="file" class="form-control" required></div>
+      <div class="col-auto"><button type="submit" class="btn btn-primary">Dosya Ekle</button></div>
+    </form>
+    {% if attachments %}
+    <div class="list-group list-group-flush">
+      {% for a in attachments %}
+      <div class="list-group-item d-flex justify-content-between align-items-center">
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon me-1"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 7l-6.5 6.5a1.5 1.5 0 0 0 3 3l6.5 -6.5a3 3 0 0 0 -6 -6l-6.5 6.5a4.5 4.5 0 0 0 9 9l6.5 -6.5" /></svg>
+          <a href="{{ url_for('download_attachment', task_id=task.id, attachment_id=a.id) }}">{{ a.original_name }}</a>
+        </div>
+        <span class="text-secondary small">{{ a.full_name }} — {{ a.uploaded_at }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-secondary">Henüz dosya eklenmemiş.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3 class="card-title">Geçmiş Notlar</h3></div>
+  <div class="card-body">
+    {% if notes %}
+    <div class="list-group list-group-flush">
+      {% for n in notes %}
+      <div class="list-group-item d-flex justify-content-between align-items-start">
+        <div><b>{{ n.full_name }}</b> — <span class="text-secondary small">{{ n.created_at }}</span><br>{{ n.note }}</div>
+        {% if user.role == 'admin' %}
+        <form method="post" action="{{ url_for('delete_note', task_id=task.id, note_id=n.id) }}" class="d-print-none"
+              onsubmit="return confirm('Bu notu silmek istediğinize emin misiniz?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-link text-danger btn-sm p-0">Sil</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-secondary">Henüz not eklenmemiş.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

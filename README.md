@@ -80,7 +80,7 @@ Docker motoru oturumlar arasında ortaktır; her worktree'nin Compose projesi ve
 
 ### Windows Server / IIS
 
-Windows Server üzerinde IIS ile yayınlamak için `winserver/` klasöründeki paketi kullanın. Python 3.12 kurucusu ve Windows bağımlılıkları paket içindedir; hedef sunucuda IIS Web Server rolü ile IIS HttpPlatformHandler x64 modülünün kurulu olması gerekir. Kurulum ve IIS sitesi oluşturma adımları `winserver/README.md` dosyasındadır. Uygulama verileri Windows Server'da `%ProgramData%\AFAD\Takip\data` altında saklanır.
+Windows Server üzerinde IIS ile yayınlamak için `winserver/` klasöründeki paketi kullanın. Python 3.12, Windows bağımlılıkları ve HttpPlatformHandler kurucusu paket içindedir. `winserver/wwwroot/` uygulama dosyalarının IIS web köküne kopyalanmaya hazır dizinidir; kurulum ve IIS sitesi oluşturma adımları `winserver/README.md` dosyasındadır.
 
 1. Proje klasöründe uygulamayı başlatın:
    ```

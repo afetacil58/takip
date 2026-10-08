@@ -1,5 +1,5 @@
-param(
-    [string]$InstallRoot = "$env:ProgramFiles\AFAD\Takip",
+﻿param(
+    [string]$InstallRoot = "$env:SystemDrive\inetpub\wwwroot",
     [string]$DataRoot = "$env:ProgramData\AFAD\Takip"
 )
 
@@ -7,7 +7,8 @@ $ErrorActionPreference = "Stop"
 $packageRoot = $PSScriptRoot
 $pythonVersion = "3.12.10"
 $pythonInstaller = Join-Path $packageRoot "python-$pythonVersion-amd64.exe"
-$applicationArchive = Join-Path $packageRoot "afad-gorev-takip-app.zip"
+$httpPlatformInstaller = Join-Path $packageRoot "httpPlatformHandler_amd64.msi"
+$siteSource = Join-Path $packageRoot "wwwroot"
 $wheelhouse = Join-Path $packageRoot "wheelhouse"
 $checksumFile = Join-Path $packageRoot "SHA256SUMS.txt"
 
@@ -17,7 +18,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     throw "PowerShell'i Yönetici olarak açıp bu betiği tekrar çalıştırın."
 }
 
-foreach ($requiredPath in @($pythonInstaller, $applicationArchive, $wheelhouse, $checksumFile)) {
+foreach ($requiredPath in @($pythonInstaller, $httpPlatformInstaller, $siteSource, $wheelhouse, $checksumFile)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Paket dosyası bulunamadı: $requiredPath"
     }
@@ -44,10 +45,6 @@ foreach ($entry in $checksumEntries) {
 }
 Write-Host "Paket dosyalarının SHA-256 özetleri doğrulandı." -ForegroundColor Green
 
-if (Test-Path -LiteralPath $InstallRoot) {
-    throw "Kurulum klasörü zaten var: $InstallRoot. Mevcut verilerin üzerine yazmamak için kurulumu durdurdum."
-}
-
 $iisModule = Get-Module -ListAvailable -Name WebAdministration |
     Select-Object -First 1
 if (-not $iisModule) {
@@ -55,8 +52,30 @@ if (-not $iisModule) {
 }
 Import-Module WebAdministration
 if (-not (Get-WebGlobalModule -Name httpPlatformHandler -ErrorAction SilentlyContinue)) {
-    throw "IIS HttpPlatformHandler bulunamadı. https://www.iis.net/downloads/microsoft/httpplatformhandler adresinden x64 modülünü kurup betiği yeniden çalıştırın."
+    Write-Host "IIS HttpPlatformHandler paketten kuruluyor..." -ForegroundColor Cyan
+    $process = Start-Process -FilePath "$env:SystemRoot\System32\msiexec.exe" `
+        -ArgumentList @("/i", "`"$httpPlatformInstaller`"", "/qn", "/norestart") `
+        -Wait -PassThru
+    if ($process.ExitCode -notin @(0, 3010)) {
+        throw "HttpPlatformHandler kurulumu başarısız oldu (kod $($process.ExitCode))."
+    }
+    if ($process.ExitCode -eq 3010) {
+        Write-Warning "HttpPlatformHandler kuruldu; değişikliklerin etkinleşmesi için sunucuyu yeniden başlatın."
+    }
+    Import-Module WebAdministration -Force
+    if (-not (Get-WebGlobalModule -Name httpPlatformHandler -ErrorAction SilentlyContinue)) {
+        throw "HttpPlatformHandler kuruldu ancak IIS modül kaydı görünmüyor. Sunucuyu yeniden başlatıp betiği tekrar çalıştırın."
+    }
 }
+
+$appPoolPath = "IIS:\AppPools\AFADTakip"
+if (-not (Test-Path -LiteralPath $appPoolPath)) {
+    New-WebAppPool -Name "AFADTakip" | Out-Null
+}
+$appPool = Get-Item -LiteralPath $appPoolPath
+$appPool.managedRuntimeVersion = ""
+$appPool.processModel.identityType = 4
+$appPool | Set-Item
 
 $pythonHome = Join-Path $env:ProgramFiles "Python312"
 $python = Join-Path $pythonHome "python.exe"
@@ -70,12 +89,26 @@ if (-not (Test-Path -LiteralPath $python)) {
     }
 }
 
-$appRoot = Join-Path $InstallRoot "app"
 $venv = Join-Path $InstallRoot "venv"
 $dataPath = Join-Path $DataRoot "data"
 $logsPath = Join-Path $DataRoot "logs"
-New-Item -ItemType Directory -Path $appRoot, $dataPath, $logsPath -Force | Out-Null
-Expand-Archive -LiteralPath $applicationArchive -DestinationPath $appRoot
+New-Item -ItemType Directory -Path $InstallRoot, $dataPath, $logsPath -Force | Out-Null
+$backupPath = Join-Path $DataRoot ("backup-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+$backedUpFiles = 0
+Get-ChildItem -LiteralPath $siteSource -Recurse -File | ForEach-Object {
+    $relativePath = $_.FullName.Substring($siteSource.Length).TrimStart('\')
+    $targetPath = Join-Path $InstallRoot $relativePath
+    if (Test-Path -LiteralPath $targetPath -PathType Leaf) {
+        $backupFile = Join-Path $backupPath $relativePath
+        New-Item -ItemType Directory -Path (Split-Path -Parent $backupFile) -Force | Out-Null
+        Copy-Item -LiteralPath $targetPath -Destination $backupFile -Force
+        $backedUpFiles++
+    }
+}
+if ($backedUpFiles -gt 0) {
+    Write-Host "Var olan $backedUpFiles dosyanın yedeği alındı: $backupPath" -ForegroundColor Yellow
+}
+Copy-Item -Path (Join-Path $siteSource "*") -Destination $InstallRoot -Recurse -Force
 
 Write-Host "Python sanal ortamı ve çevrimdışı bağımlılıklar kuruluyor..." -ForegroundColor Cyan
 & $python -m venv $venv
@@ -90,12 +123,11 @@ if ($LASTEXITCODE -ne 0) { throw "Uygulama veri klasörü izinleri ayarlanamadı
 & icacls $logsPath /grant "${appPoolIdentity}:(OI)(CI)M" /T | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Uygulama log klasörü izinleri ayarlanamadı." }
 
-$configPath = Join-Path $appRoot "web.config"
-Copy-Item -LiteralPath (Join-Path $packageRoot "web.config") -Destination $configPath
+$configPath = Join-Path $InstallRoot "web.config"
 $config = [xml](Get-Content -LiteralPath $configPath -Raw)
 $platform = $config.configuration.'system.webServer'.httpPlatform
 $platform.processPath = $venvPython
-$platform.arguments = '"' + (Join-Path $appRoot "winserver_server.py") + '"'
+$platform.arguments = '"' + (Join-Path $InstallRoot "winserver_server.py") + '"'
 $platform.stdoutLogFile = Join-Path $logsPath "stdout"
 $platform.environmentVariables.environmentVariable |
     Where-Object { $_.name -eq "DATA_DIR" } |
@@ -103,16 +135,16 @@ $platform.environmentVariables.environmentVariable |
 $config.Save($configPath)
 
 $env:DATA_DIR = $dataPath
-$prepareOutput = & $venvPython (Join-Path $appRoot "winserver_server.py") --prepare-only 2>&1
+$prepareOutput = & $venvPython (Join-Path $InstallRoot "winserver_server.py") --prepare-only 2>&1
 if ($LASTEXITCODE -ne 0) {
     throw "Uygulama veritabanı başlatılamadı: $($prepareOutput -join "`n")"
 }
 
-Write-Host "`nUygulama dosyaları kuruldu: $appRoot" -ForegroundColor Green
+Write-Host "`nUygulama dosyaları kuruldu: $InstallRoot" -ForegroundColor Green
 Write-Host "Kalıcı veriler: $dataPath"
-Write-Host "IIS uygulama havuzu adı: AFADTakip (kimlik: ApplicationPoolIdentity)"
-Write-Host "IIS web sitesi kök klasörü olarak şu yolu kullanın: $appRoot"
-Write-Host "IIS'te AFADTakip adlı uygulama havuzu oluşturup .NET CLR ayarını 'No Managed Code' yapın."
+Write-Host "IIS uygulama havuzu hazır: AFADTakip (No Managed Code, ApplicationPoolIdentity)"
+Write-Host "IIS web sitesi kök klasörü olarak şu yolu kullanın: $InstallRoot"
+Write-Host "IIS Manager'da sitenizin fiziksel yolunu $InstallRoot, uygulama havuzunu AFADTakip yapın."
 Write-Host "HttpPlatformHandler, web.config içindeki Waitress sunucusunu yönetir."
 Write-Host "Önce HTTPS bağlamasını yapılandırın; dış erişimden önce web.config içinde SESSION_COOKIE_SECURE=true ekleyin."
 Write-Host "İlk kurulum bilgisi:"

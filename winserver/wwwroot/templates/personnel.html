@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Personelim{% endblock %}
+{% block content %}
+<div class="page-header"><h2 class="page-title">Personelim</h2></div>
+<p class="text-secondary">Kendi ekibinizdeki personeli buradan ekleyin — sisteme giriş yapamazlar, sadece "Yeni İşlem" oluştururken sorumlu personel olarak seçilebilirler.</p>
+
+<div class="row row-cards">
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Yeni Personel Ekle</h3></div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3"><label class="form-label">Ad Soyad</label><input type="text" name="full_name" class="form-control" required placeholder="Örn: Ahmet Yılmaz"></div>
+          <button type="submit" class="btn btn-primary w-100">Ekle</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead><tr><th>Ad Soyad</th><th>Durum</th><th></th></tr></thead>
+          <tbody>
+            {% for p in personnel_list %}
+            <tr>
+              <td>{{ p.full_name }}</td>
+              <td>{% if p.is_active %}<span class="badge bg-green-lt">Aktif</span>{% else %}<span class="badge bg-secondary-lt">Pasif</span>{% endif %}</td>
+              <td>
+                <form method="post" action="{{ url_for('toggle_personnel', personnel_id=p.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary">{% if p.is_active %}Pasifleştir{% else %}Aktifleştir{% endif %}</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="text-center text-secondary py-4">Henüz personel eklenmedi.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

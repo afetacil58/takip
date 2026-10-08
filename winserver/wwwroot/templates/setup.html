@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}İlk Kurulum{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-sm-8 col-md-6 col-lg-5">
+    <div class="card card-md">
+      <div class="card-header"><h2 class="card-title">Görev Takip Sistemi — İlk Kurulum</h2></div>
+      <div class="card-body">
+        <p class="text-secondary">Sistemi kullanmaya başlamak için ilk yönetici hesabını oluşturun. Bu bilgiler veritabanınızda saklanır.</p>
+        <form method="post" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% if setup_token_required %}
+          <div class="mb-3">
+            <label class="form-label">Kurulum Anahtarı</label>
+            <input type="password" name="setup_token" class="form-control" required autocomplete="off">
+            <div class="form-hint">Anahtar, Docker kurulumundan sonra <code>docker compose logs app</code> çıktısında görünür.</div>
+          </div>
+          {% endif %}
+          <div class="mb-3">
+            <label class="form-label">Ad Soyad</label>
+            <input type="text" name="full_name" class="form-control" maxlength="120" required autofocus>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Kullanıcı Adı</label>
+            <input type="text" name="username" class="form-control" minlength="3" maxlength="80" required autocomplete="username">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">E-posta <span class="text-secondary">(isteğe bağlı)</span></label>
+            <input type="email" name="email" class="form-control" maxlength="254" autocomplete="email">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Şifre</label>
+            <input type="password" name="password" class="form-control" minlength="4" required autocomplete="new-password">
+            <div class="form-hint">En az 4 karakter kullanın.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Şifre (Tekrar)</label>
+            <input type="password" name="confirm_password" class="form-control" minlength="4" required autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Yönetici Hesabını Oluştur</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

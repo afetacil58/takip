@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Yöneticiler{% endblock %}
+{% block content %}
+<div class="page-header"><h2 class="page-title">Yöneticiler</h2></div>
+<p class="text-secondary">Bu sayfadan sistemi tüm şubeler genelinde görebilecek başka yönetici hesapları (örn. Müdür) ekleyebilirsiniz.</p>
+
+<div class="row row-cards">
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Yeni Yönetici Ekle</h3></div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3"><label class="form-label">Ad Soyad</label><input type="text" name="full_name" class="form-control" required placeholder="Örn: Ahmet Kaya (Müdür)"></div>
+          <div class="mb-3"><label class="form-label">Kullanıcı Adı</label><input type="text" name="username" class="form-control" required></div>
+          <div class="mb-3"><label class="form-label">Geçici Şifre</label><input type="password" name="password" class="form-control" minlength="4" required placeholder="İlk girişte değiştirilecek (en az 4 karakter)"></div>
+          <button type="submit" class="btn btn-primary w-100">Ekle</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead><tr><th>Ad Soyad</th><th>Kullanıcı Adı</th><th>Durum</th><th colspan="2"></th></tr></thead>
+          <tbody>
+            {% for a in admin_list %}
+            <tr>
+              <td>{{ a.full_name }}{% if a.id == current_user_id %} <span class="text-secondary small">(siz)</span>{% endif %}</td>
+              <td>{{ a.username }}</td>
+              <td>{% if a.is_active %}<span class="badge bg-green-lt">Aktif</span>{% else %}<span class="badge bg-secondary-lt">Pasif</span>{% endif %}</td>
+              <td><a href="{{ url_for('edit_admin', user_id=a.id) }}" class="btn btn-sm btn-outline-primary">Düzenle</a></td>
+              <td>
+                <form method="post" action="{{ url_for('toggle_admin', user_id=a.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary">{% if a.is_active %}Pasifleştir{% else %}Aktifleştir{% endif %}</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-secondary py-4">Henüz başka yönetici eklenmedi.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

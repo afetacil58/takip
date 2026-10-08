@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Raporlar{% endblock %}
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="row align-items-center">
+    <div class="col"><h2 class="page-title">Şube Bazlı Rapor</h2></div>
+    <div class="col-auto">
+      <a href="{{ url_for('export_report', department=department, start_date=start_date, end_date=end_date, status=status) }}" class="btn btn-outline-primary">Excel'e Aktar</a>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3 d-print-none">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-auto">
+        <select name="department" class="form-select" onchange="this.form.submit()">
+          <option value="">Tüm Şubeler</option>
+          {% for d in departments %}
+          <option value="{{ d }}" {% if d == department %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <select name="status" class="form-select" onchange="this.form.submit()">
+          <option value="">Tüm Durumlar</option>
+          {% for s in STATUSES %}
+          <option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="input-group input-group-flat" style="width: auto;">
+          <span class="input-group-text">Başlangıç</span>
+          <input type="date" name="start_date" value="{{ start_date }}" class="form-control" onchange="this.form.submit()">
+        </label>
+      </div>
+      <div class="col-auto">
+        <label class="input-group input-group-flat" style="width: auto;">
+          <span class="input-group-text">Bitiş</span>
+          <input type="date" name="end_date" value="{{ end_date }}" class="form-control" onchange="this.form.submit()">
+        </label>
+      </div>
+      {% if department or status or start_date or end_date %}
+      <div class="col-auto"><a href="{{ url_for('reports') }}" class="btn btn-link">Filtreleri Temizle</a></div>
+      {% endif %}
+      <div class="col-auto"><button type="button" onclick="window.print()" class="btn btn-outline-secondary">Yazdır</button></div>
+    </form>
+  </div>
+</div>
+
+<p class="text-secondary d-print-none">Toplam {{ total_tasks }} işlem, {{ report|length }} şube.</p>
+
+{% for dept, data in report.items()|sort %}
+<div class="card mb-3">
+  <div class="card-header">
+    <h3 class="card-title">{{ dept }}</h3>
+    <div class="card-actions">
+      {% if data.overdue > 0 %}<span class="badge bg-red-lt me-1">{{ data.overdue }} gecikmiş</span>{% endif %}
+      {% if data.stale > 0 %}<span class="badge bg-yellow-lt">{{ data.stale }} durağan</span>{% endif %}
+    </div>
+  </div>
+  <div class="card-body border-bottom">
+    <div class="row row-cards">
+      <div class="col-auto"><div class="text-secondary small">Toplam</div><div class="h3 m-0">{{ data.tasks|length }}</div></div>
+      <div class="col-auto"><div class="text-secondary small">Bekliyor</div><div class="h3 m-0">{{ data.counts['Bekliyor'] }}</div></div>
+      <div class="col-auto"><div class="text-secondary small">Devam Ediyor</div><div class="h3 m-0">{{ data.counts['Devam Ediyor'] }}</div></div>
+      <div class="col-auto"><div class="text-secondary small">Tamamlandı</div><div class="h3 m-0 text-green">{{ data.counts['Tamamlandı'] }}</div></div>
+      <div class="col-auto"><div class="text-secondary small">İptal</div><div class="h3 m-0">{{ data.counts['İptal'] }}</div></div>
+      <div class="col-auto"><div class="text-secondary small">Ort. Tamamlama</div><div class="h3 m-0">{% if data.avg_days is not none %}{{ data.avg_days }} gün{% else %}-{% endif %}</div></div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr><th>Sıra No</th><th>İşlem</th><th>Sorumlu</th><th>Öncelik</th><th>Durum</th><th>İlerleme</th><th>Oluşturulma</th><th>Termin</th></tr>
+      </thead>
+      <tbody>
+        {% for t in data.tasks %}
+        <tr class="{% if is_overdue(t) %}table-danger{% endif %}">
+          <td>{{ loop.index }}</td>
+          <td>{{ t.title }}</td>
+          <td>{{ t.assigned_name }}</td>
+          <td>{{ m.priority_badge(t.priority) }}</td>
+          <td>{{ m.status_badge(t.status) }}</td>
+          <td style="min-width: 100px;">{{ m.progress_bar(t.progress) }}</td>
+          <td>{{ t.created_at[:10] }}</td>
+          <td>{% if t.due_date %}{{ t.due_date }}{% if is_overdue(t) %} <span class="text-red fw-bold small">gecikti</span>{% endif %}{% else %}-{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<p class="text-secondary">Seçilen filtrelere uygun işlem bulunamadı.</p>
+{% endfor %}
+{% endblock %}
