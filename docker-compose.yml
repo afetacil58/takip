@@ -1,27 +1,36 @@
 services:
   app:
     build: .
-    container_name: afad
     restart: unless-stopped
     environment:
-      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the .env file}
+      DATA_DIR: /data
+      DB_PATH: /data/gorev_takip.db
+      UPLOAD_DIR: /data/uploads
+      SETUP_TOKEN_FILE: /data/.setup_token
+      SECRET_KEY: ${SECRET_KEY:-}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-465}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_USE_SSL: ${SMTP_USE_SSL:-true}
-      BASE_URL: ${BASE_URL:-http://127.0.0.1:5000}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-AFAD Görev Takip Sistemi}
+      BASE_URL: ${BASE_URL:-http://localhost:${APP_PORT:-5000}}
+      DAYS_AHEAD_WARNING: ${DAYS_AHEAD_WARNING:-2}
     ports:
-      - 5000
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-5000}:5000"
     volumes:
-      - type: bind
-        source: ./gorev_takip.db
-        target: /app/gorev_takip.db
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ./uploads
-        target: /app/uploads
-        bind:
-          create_host_path: false
-      - ./email_config.py:/app/email_config.py:ro
+      - app_data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/login', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  app_data:

@@ -1,0 +1,22 @@
+{% macro status_color(status) -%}
+{{ {'Bekliyor': 'secondary', 'Devam Ediyor': 'blue', 'Tamamlandı': 'green', 'İptal': 'dark'}.get(status, 'secondary') }}
+{%- endmacro %}
+
+{% macro priority_color(priority) -%}
+{{ {'Düşük': 'secondary', 'Orta': 'blue', 'Yüksek': 'yellow', 'Acil': 'red'}.get(priority, 'secondary') }}
+{%- endmacro %}
+
+{% macro status_badge(status) -%}
+<span class="badge bg-{{ status_color(status) }}-lt">{{ status }}</span>
+{%- endmacro %}
+
+{% macro priority_badge(priority) -%}
+<span class="badge bg-{{ priority_color(priority) }}-lt">{{ priority }}</span>
+{%- endmacro %}
+
+{% macro progress_bar(progress) -%}
+<div class="progress progress-sm" role="progressbar" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+  <div class="progress-bar" style="width: {{ progress }}%"></div>
+</div>
+<div class="text-secondary small mt-1">%{{ progress }}</div>
+{%- endmacro %}

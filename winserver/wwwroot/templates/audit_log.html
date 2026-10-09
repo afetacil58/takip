@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Denetim Kaydı{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2 class="page-title">Denetim Kaydı</h2>
+  <p class="text-secondary">Son 500 ekleme, güncelleme, silme ve oturum işlemi. İstek içerikleri ve şifreler kaydedilmez.</p>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead><tr><th>Tarih</th><th>Kullanıcı</th><th>İşlem</th><th>Hedef</th><th>Sonuç</th></tr></thead>
+      <tbody>
+        {% for entry in entries %}
+        <tr>
+          <td>{{ entry.created_at }}</td>
+          <td>{{ entry.full_name or "Oturum açmamış kullanıcı" }}{% if entry.username %}<div class="text-secondary small">{{ entry.username }}</div>{% endif %}</td>
+          <td>{{ entry.action }}</td>
+          <td><code>{{ entry.target }}</code></td>
+          <td>{{ entry.result }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-secondary py-4">Henüz kayıt yok.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

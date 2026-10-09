@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Panel{% endblock %}
+{% block content %}
+
+<div class="page-header d-print-none">
+  <div class="row align-items-center">
+    <div class="col">
+      <h2 class="page-title">{% if user.role == 'admin' %}Genel Görünüm{% else %}İşlemlerim{% endif %}</h2>
+    </div>
+    <div class="col-auto">
+      {% if overdue_count > 0 %}<span class="badge bg-red-lt me-1">{{ overdue_count }} gecikmiş işlem</span>{% endif %}
+      {% if stale_count > 0 %}<span class="badge bg-yellow-lt">{{ stale_count }} durağan işlem</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+{% if overall_total > 0 %}
+<div class="card mb-3">
+  <div class="card-body">
+    <h3 class="card-title">Genel Durum Dağılımı <span class="text-secondary fw-normal">({{ overall_total }} işlem)</span></h3>
+    <div id="chart-status-overall" style="min-height: 220px;"></div>
+  </div>
+</div>
+{% endif %}
+
+{% if user.role == 'admin' and summary %}
+<div class="row row-cards mb-3">
+  {% for dept, counts in summary.items() %}
+  {% set dept_total = counts.values()|sum %}
+  <div class="col-sm-6 col-lg-4">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="fw-medium">{{ dept or "Atanmamış" }}</div>
+          <div class="text-secondary small">{{ dept_total }} işlem</div>
+        </div>
+        <div class="progress progress-sm mb-2">
+          {% for s in STATUSES %}
+          {% set pct = (counts[s] / dept_total * 100) if dept_total else 0 %}
+          {% if pct > 0 %}
+          <div class="progress-bar bg-{{ m.status_color(s) }}" style="width: {{ pct }}%" title="{{ s }}: {{ counts[s] }}"></div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        <div class="d-flex flex-wrap gap-2 small text-secondary">
+          <span>Bekliyor <b class="text-body">{{ counts.get('Bekliyor', 0) }}</b></span>
+          <span>Devam Ediyor <b class="text-body">{{ counts.get('Devam Ediyor', 0) }}</b></span>
+          <span>Tamamlandı <b class="text-green">{{ counts.get('Tamamlandı', 0) }}</b></span>
+          <span>İptal <b class="text-body">{{ counts.get('İptal', 0) }}</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-body">
+    {% if user.role == 'admin' %}
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-12 col-md-3">
+        <input type="text" name="q" value="{{ q }}" placeholder="İşlem ara..." class="form-control">
+      </div>
+      <div class="col-6 col-md-3">
+        <select name="department" class="form-select" onchange="this.form.submit()">
+          <option value="">Tüm Şubeler</option>
+          {% for d in departments %}
+          <option value="{{ d }}" {% if d == dept_filter %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <select name="assigned_to" class="form-select" onchange="this.form.submit()">
+          <option value="">Tüm Şube Müdürleri</option>
+          {% for mgr in managers %}
+          <option value="{{ mgr.id }}" {% if user_filter == mgr.id|string %}selected{% endif %}>{{ mgr.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <select name="status" class="form-select" onchange="this.form.submit()">
+          <option value="">Tüm Durumlar</option>
+          {% for s in STATUSES %}
+          <option value="{{ s }}" {% if s == status_filter %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Ara</button>
+      </div>
+      {% if dept_filter or status_filter or user_filter or q %}
+      <div class="col-auto">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-link">Filtreleri Temizle</a>
+      </div>
+      {% endif %}
+    </form>
+    {% else %}
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-12 col-md-4">
+        <input type="text" name="q" value="{{ q }}" placeholder="İşlem ara..." class="form-control">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Ara</button>
+      </div>
+      {% if q %}
+      <div class="col-auto">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-link">Temizle</a>
+      </div>
+      {% endif %}
+    </form>
+    {% endif %}
+  </div>
+
+  {% macro sort_link(key, label) %}
+  {% set new_dir = 'desc' if sort == key and sort_dir == 'asc' else 'asc' %}
+  <a class="text-reset" href="{{ url_for('dashboard', sort=key, dir=new_dir, department=dept_filter, assigned_to=user_filter, status=status_filter, q=q) }}">{{ label }}{% if sort == key %} <span class="text-primary">{{ '▲' if sort_dir == 'asc' else '▼' }}</span>{% endif %}</a>
+  {% endmacro %}
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th>Sıra No</th>
+          <th>{{ sort_link('title', 'İşlem') }}</th>
+          {% if user.role == 'admin' %}<th>Şube</th><th>Sorumlu</th>{% endif %}
+          <th>{{ sort_link('priority', 'Öncelik') }}</th>
+          <th>{{ sort_link('status', 'Durum') }}</th>
+          <th>{{ sort_link('progress', 'İlerleme') }}</th>
+          <th>{{ sort_link('due_date', 'Termin') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tasks %}
+        <tr style="cursor: pointer;" class="{% if is_overdue(t) %}table-danger{% elif is_stale(t) %}table-warning{% endif %}" onclick="window.location='{{ url_for('task_detail', task_id=t.id) }}'">
+          <td>{{ loop.index }}</td>
+          <td class="fw-medium">{{ t.title }}</td>
+          {% if user.role == 'admin' %}
+          <td>{{ t.department or "-" }}</td>
+          <td>{{ t.assigned_name }}</td>
+          {% endif %}
+          <td>{{ m.priority_badge(t.priority) }}</td>
+          <td>
+            {{ m.status_badge(t.status) }}
+            {% if is_stale(t) and not is_overdue(t) %}<div class="text-yellow small mt-1">{{ days_since_update(t) }} gündür güncellenmedi</div>{% endif %}
+          </td>
+          <td style="min-width: 100px;">{{ m.progress_bar(t.progress) }}</td>
+          <td>{% if t.due_date %}{{ t.due_date }}{% if is_overdue(t) %} <span class="text-red fw-bold small">gecikti</span>{% endif %}{% else %}-{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ 8 if user.role == 'admin' else 6 }}" class="text-center text-secondary py-4">Henüz işlem yok. "+ Yeni İşlem" ile ekleyebilirsiniz.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="text-secondary small d-print-none">
+  Sistemi nasıl kullanacağınızı mı unuttunuz?
+  <a href="{{ url_for('static', filename='rehber/kullanim-rehberi.pdf') }}" target="_blank" rel="noopener">Kullanım Rehberini (PDF) açın</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if overall_total > 0 %}
+<script src="{{ url_for('static', filename='vendor/tabler/js/apexcharts.min.js') }}"></script>
+<script>
+new ApexCharts(document.getElementById('chart-status-overall'), {
+  chart: { type: 'donut', height: 220 },
+  series: [{% for s in STATUSES %}{{ overall_counts[s] }}{% if not loop.last %},{% endif %}{% endfor %}],
+  labels: [{% for s in STATUSES %}{{ s|tojson }}{% if not loop.last %},{% endif %}{% endfor %}],
+  colors: ['#adb5bd', '#4299e1', '#2fb344', '#495057'],
+  legend: { position: 'bottom' },
+  dataLabels: { enabled: false },
+}).render();
+</script>
+{% endif %}
+{% endblock %}

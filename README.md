@@ -1,6 +1,6 @@
 # AFAD Görev Takip Sistemi
 
-Şube müdürlerine atanan işlemleri tek merkezden izlemek için basit, offline çalışan bir web uygulaması.
+Şube müdürlerine atanan işlemleri tek merkezden izlemek için tasarlanmış bir web uygulaması.
 Hiçbir internet bağlantısına ihtiyaç duymaz — kurum içi ağda veya tek bir bilgisayarda çalışır.
 
 ## Bugün hemen test etmek için (kendi bilgisayarında)
@@ -12,15 +12,12 @@ Hiçbir internet bağlantısına ihtiyaç duymaz — kurum içi ağda veya tek b
    python app.py
    ```
 3. Tarayıcıda **http://127.0.0.1:5000** adresini açın.
-4. Giriş yapın:
-   - Kullanıcı adı: `admin`
-   - Şifre: `degistir123`
-   - **İlk girişten sonra parolayı mutlaka "Şifremi Değiştir" sayfasından değiştirin.**
+4. İlk açılışta **İlk Kurulum** sayfasından yönetici adını, kullanıcı adını, isteğe bağlı e-posta adresini ve güçlü bir şifreyi belirleyin. Uygulama artık varsayılan kullanıcı veya şifre oluşturmaz.
 
 ## Nasıl kullanılır
 
 1. **"Şube Müdürleri"** sayfasından her şube müdürü için bir hesap açın (ad-soyad, şube adı, kullanıcı adı, geçici şifre).
-2. Şube müdürlerine kendi kullanıcı adı/şifrelerini iletin — aynı adresten (kurum ağındaysa `http://sunucu-ip:5000`) giriş yapıp kendilerine atanan işlemleri görüp güncelleyebilirler.
+2. Şube müdürlerine kendi kullanıcı adı/şifrelerini iletin — üretim kurulumunda kurum içi DNS adı ve HTTPS reverse proxy adresinden giriş yapıp kendilerine atanan işlemleri görüp güncelleyebilirler.
 3. **"+ Yeni İşlem"** ile bir işlem oluşturup ilgili şube müdürüne atayın, öncelik ve termin tarihi verin.
 4. Ana panelde:
    - Tüm şubelerin özet durumu (bekleyen/devam eden/tamamlanan) tek ekranda görünür.
@@ -40,57 +37,69 @@ Eski HTML prototipinde tarayıcıya kaydedilmiş kayıtları taşımak için pro
 Şube müdürlerinin kendi bilgisayarlarından erişebilmesi için:
 
 1. Kurum içi bir Linux sunucuya (veya mevcut bir Windows sunucuya) bu klasörü kopyalayın.
-2. Gerçek bir üretim sunucusu ile çalıştırın (örnek — Linux, gunicorn ile):
+2. Gerçek bir üretim sunucusu ile çalıştırın. Uygulama imzalama anahtarını kalıcı, gizli bir ortam değişkeni olarak tanımlayın; tüm worker'lar aynı değeri kullanmalıdır:
    ```
-   pip install flask gunicorn
-   gunicorn -w 4 -b 0.0.0.0:5000 app:app
+   export SECRET_KEY='<uzun-rastgele-ve-kalici-deger>'
+   gunicorn --preload --workers 4 --bind 127.0.0.1:5000 wsgi:app
    ```
-3. Oturum imzalama anahtarını `SECRET_KEY` ortam değişkeniyle ayarlayın. Docker kurulumunda bu değer `.env` dosyasından okunur.
-4. Sunucunun IP adresini şube müdürleriyle paylaşın: `http://<sunucu-ip>:5000`
-5. (Önerilir) Kurumun IT/sistem odası ile görüşüp bu adresi kurum içi bir alan adına (örn. `gorevtakip.afad.local`) bağlatabilir ve HTTPS ekletebilirsiniz.
+3. Gunicorn'u systemd gibi bir servis yöneticisiyle çalıştırın; SQLite veritabanı ve yükleme dizini servis kullanıcısına yazılabilir, yedeklenebilir kalıcı bir diskte olmalıdır.
+4. Uygulamayı doğrudan internete açmayın. Nginx/Apache gibi bir reverse proxy üzerinden TLS/HTTPS sağlayın; güvenlik duvarında Gunicorn portunu dış erişime kapatıp yalnızca proxy'nin erişmesine izin verin.
+5. Örnek Nginx reverse proxy yapılandırması:
+   ```
+   server {
+       listen 443 ssl;
+       server_name gorevtakip.example.org;
+       ssl_certificate /etc/ssl/certs/gorevtakip.crt;
+       ssl_certificate_key /etc/ssl/private/gorevtakip.key;
+       client_max_body_size 15m;
+       location / {
+           proxy_pass http://127.0.0.1:5000;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+       }
+   }
+   ```
+   Uygulama `X-Forwarded-*` başlıklarını doğrudan güvenilir saymaz; TLS sonlandırmayı reverse proxy'de yapın ve Gunicorn portunu yalnızca yerel proxy'ye bağlayın.
 
-### Alpine Linux Docker ile kurulum
+### Docker ile kurulum (Linux veya Docker Desktop)
 
-Sunucuda Docker Engine ve Docker Compose eklentisi kurulu olmalıdır. Proje klasöründe aşağıdaki adımları uygulayın:
+Docker Engine ve Docker Compose eklentisi kurulu olmalıdır. Özel kullanıcı bilgilerini kurulumdan önce dosyalara yazmanız gerekmez:
 
-1. Oturum anahtarı için `.env` dosyası oluşturun. Anahtarı terminalde üretin ve çıktıyı `.env` dosyasına `SECRET_KEY=` sonrasında yazın:
-   ```
-   openssl rand -hex 32
-   ```
-   Örnek `.env` biçimi (örnek değeri kullanmayın):
-   ```
-   SECRET_KEY=buraya_urettiginiz_uzun_rastgele_deger
-   ```
-2. E-posta bildirimleri kullanılacaksa `.env` dosyasına SMTP ayarlarını ekleyin. Parolayı kaynak koda veya `email_config.py` dosyasına yazmayın:
-   ```
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=465
-   SMTP_USE_SSL=true
-   SMTP_USER=kurum-hesabi@example.com
-   SMTP_PASSWORD=posta-saglayicinizdan-alinan-uygulama-sifresi
-   BASE_URL=http://sunucu-ip:5000
-   ```
-   `.env` dosyası Git tarafından yok sayılır; erişimini ve yedeklerini yine de koruyun.
-3. Veritabanı ve yükleme klasörünün mevcut olduğundan emin olun. İlk kurulumda:
-   ```
-   touch gorev_takip.db
-   mkdir -p uploads
-   ```
-   Konteyner root olmayan `10001` kullanıcısıyla çalışır; bu dosya ve klasörün yazılabilir olması gerekir. Linux sunucuda sahipliğini ayarlayın:
-   ```
-   sudo chown -R 10001:10001 gorev_takip.db uploads
-   ```
-4. Oturum anahtarı `.env` dosyasında tanımlıyken uygulamayı oluşturup başlatın:
+**Windows'ta Docker Desktop'ı makineye bir kez kurup uygulamayı başlatmak için** proje klasöründeki PowerShell'i yönetici olarak açın ve çalıştırın:
+```
+.\install-docker.ps1
+```
+Kuruluşunuz PowerShell yürütme ilkesini merkezi olarak yönetiyorsa `Set-ExecutionPolicy` komutunu çalıştırmayın; betiği doğrudan başlatın. İlke değişikliği gerekirse kurum BT yöneticinize danışın.
+Betik Docker Desktop'ı `winget --scope machine` ile makine-geneli kurar (kurulum mevcut değilse), WSL2 ve Docker motorunun hazır olmasını bekler, uygulamayı başlatır ve tarayıcı adresiyle tek kullanımlık kurulum anahtarını gösterir. Docker Desktop motoru bilgisayardaki Copilot oturumları arasında paylaşılır; Docker Desktop'ı her oturum veya worktree için yeniden kurmanız gerekmez. Kurulumdan sonra başlayan oturumlar Docker CLI ve ortak motora erişebilir; kurulum sırasında açık olan Copilot/terminal oturumlarının ortam değişkenlerini yenilemek için bunları kapatıp yeniden açın. Docker Desktop'ın diğer Windows oturum açmalarında da hazır olmasını istiyorsanız Docker Desktop ayarlarından **Start Docker Desktop when you sign in** seçeneğini etkinleştirin. Windows yeniden başlatma isterse bilgisayarı yeniden başlatıp betiği tekrar çalıştırın. Kullanılan port `.env` içinde saklanır; böylece sonraki `docker compose` komutları aynı adreste çalışır. Docker Desktop kapalıysa daha sonra betiği yeniden çalıştırarak Docker motorunu açabilirsiniz. İsterseniz portu elle belirleyin: `.\install-docker.ps1 -Port 5001`.
+
+Docker motoru oturumlar arasında ortaktır; her worktree'nin Compose projesi ve veritabanı volume'u ise varsayılan olarak ayrıdır. Docker Desktop, kurum/iş amaçlı kullanım için lisans koşullarına tabi olabilir; Docker'ın güncel lisansını ve bilgisayarınızda sanallaştırma/WSL2 gereksinimlerini kontrol edin.
+
+İnternet erişimi olmayan, Docker Engine ve Compose zaten kurulu başka bir bilgisayara dağıtmak için `docker/` klasöründe uygulama imajı ve Python bağımlılıkları tek bir `.tar` dosyasında paketlenmiştir. Arşivi, `compose.yaml` dosyasını ve `install-offline.ps1` betiğini birlikte aktarın; çevrimdışı kurulum adımları `docker/README.md` içindedir. Docker Desktop/WSL kurulum programları bu pakete dahil değildir.
+
+### Windows Server / IIS
+
+Windows Server üzerinde IIS ile yayınlamak için `winserver/` klasöründeki paketi kullanın. Python 3.12, Windows bağımlılıkları ve HttpPlatformHandler kurucusu paket içindedir. Kurulum ayrı `C:\inetpub\sites\AFADTakip` dizini, `AFADTakip` uygulama havuzu ve 8085 portunda yeni `AFAD-GorevTakip` IIS sitesi oluşturur; mevcut sitenin `wwwroot` klasörüne ve binding'lerine dokunmaz. Ayrıntılı ve çakışmasız kurulum, HTTPS ve güvenlik duvarı adımları `winserver/README.md` dosyasındadır.
+
+1. Proje klasöründe uygulamayı başlatın:
    ```
    docker compose up -d --build
    ```
-5. Tarayıcıdan **http://sunucu-ip:5000** adresini açın. İlk kurulumda giriş bilgileri `admin` / `degistir123` olur; ilk girişten sonra parolayı değiştirin.
+   İlk kurulumda Docker veritabanı ve yükleme alanını kendi kalıcı `app_data` volume'unda oluşturur. Oturum imzalama anahtarı da volume içinde güvenli rastgele bir değerle otomatik üretilir.
+2. İlk yönetici kurulum anahtarını alın:
+   ```
+   docker compose logs app
+   ```
+   Çıktıdaki **Initial administrator setup token** değerini saklayın ve `.env` içindeki `APP_PORT` değerine göre `http://localhost:<APP_PORT>` adresini açın (varsayılan `5000`). Kurulum ekranında anahtarla birlikte yönetici adını, kullanıcı adını, e-posta adresini (isteğe bağlı) ve güçlü şifreyi girin. Anahtar ilk yönetici oluşturulduktan sonra geçersiz olur. Docker varsayılan olarak sadece bu bilgisayardan erişime açıktır.
+3. E-posta bildirimlerini yönetici hesabıyla **Ayarlar → Sistem Ayarları** sayfasından yapılandırın. SMTP sunucusu, port, bağlantı güvenliği, kullanıcı adı/parola, gönderen adı ve uygulama adresini kaydedip test e-postası gönderebilirsiniz. Yeni görev atandığında bildirim, ilgili şube müdürünün hesabındaki e-posta adresine gönderilir. Eski kurulumlardaki SMTP `.env` değerleri varsayılan olarak kullanılmaya devam eder; yönetim sayfasında kaydedilen ayarlar bunları geçersiz kılar.
 
-Uygulama `python:3.12-alpine` imajında, root olmayan kullanıcıyla çalışır. Veritabanı (`gorev_takip.db`) ve yüklenen dosyalar (`uploads/`) proje klasöründe kalır; konteyner yeniden oluşturulduğunda silinmez. Yedekleme yaparken uygulamayı durdurup bu dosya ve klasörü kopyalayın. `.env` dosyasını ve yedekleri güvenli tutun. Durdurmak için `docker compose down` kullanın.
+Konteyner `python:3.12-alpine` imajında root olmayan kullanıcıyla ve Gunicorn üzerinden çalışır. Uygulama sağlık kontrolü içerir; konteyner içi HTTP portu `5000`, yerel makinedeki port `.env` içindeki `APP_PORT` değeridir (varsayılan `5000`). Veritabanı, yüklenen dosyalar ve oturum anahtarı `app_data` volume'unda konteyner yeniden oluşturulsa da korunur. `docker compose down` bu volume'u silmez; **`docker compose down -v` tüm uygulama verisini siler**. Düzenli yedek alın ve volume/yedek erişimini koruyun.
+HTTPS'i reverse proxy'de sonlandırıyorsanız `.env` dosyasında `SESSION_COOKIE_SECURE=true` ayarlayın. HTTP üzerinden doğrudan kullanımda bu ayarı etkinleştirmeyin; tarayıcı güvenli oturum çerezlerini HTTP isteklerinde göndermez.
 
 ## Veri nerede saklanıyor?
 
-Tüm veriler `gorev_takip.db` adlı tek bir dosyada (SQLite) tutulur — bu dosyayı düzenli olarak yedeklemeniz yeterlidir.
+Yerel çalıştırmada tüm veriler `gorev_takip.db` adlı SQLite dosyasında tutulur. Docker kurulumunda SQLite veritabanı, yüklenen dosyalar ve oturum anahtarı `app_data` adlı kalıcı volume'da saklanır.
 Hiçbir veri dışarıya (internete) gönderilmez — e-posta bildirimleri hariç, onlar da yalnızca sizin belirlediğiniz
 SMTP sunucusuna gider.
 
@@ -136,12 +145,12 @@ Elle test etmek isterseniz terminalden doğrudan `python send_reminders.py` çal
 
 `python test_email.py` yalnızca ayarların yüklenip yüklenmediğini gösterir; SMTP sunucusuna bağlanmaz, parolayı yazdırmaz ve e-posta göndermez. E-posta gönderme kodunun yerel, ağ bağlantısı kurmayan testlerini `python -m unittest discover -s tests` ile çalıştırabilirsiniz. Gerçek alıcıya teslimatı doğrulamak için önce SMTP ayarlarını kurumunuzun onayladığı yöntemle yapılandırıp kontrollü bir alıcı kullanın.
 
-## Sınırlamalar / bir sonraki adımlar
+## Güvenlik ve işletim notları
 
-- Şu an ilk admin şifresi kod içinde sabit (`degistir123`) — üretime almadan önce değiştirin.
-- Şifre sıfırlama e-postayla değil, sadece admin üzerinden yapılabiliyor (mevcut haliyle basit tutuldu).
-- İsterseniz eklenebilecekler: Excel'e dışa aktarma, dosya/ek yükleme (her ikisi de eklendi ✓).
-  Bunları istediğinizde birlikte ekleyebiliriz.
+- Yeni yönetici/şube müdürü hesaplarına geçici şifre verilir; ilk oturumda şifre değiştirilmeden uygulamanın diğer sayfaları açılamaz. Şifreler en az 4 karakter olmalıdır. Eski hesapların şifresi ve oturumları değişmeden kalır.
+- Formlar ve JSON tabanlı aylık faaliyet istekleri CSRF koruması kullanır. Denetim kaydı yönetici menüsünde son 500 değişiklik ve oturum denemesini gösterir; parola ve istek gövdeleri kaydedilmez.
+- Testler GitHub Actions'ta her pull request ve `main` dalına yapılan push için çalışır.
+- Şifre sıfırlama e-postayla değil, sadece yönetici tarafından yapılabiliyor.
 "# takip"
 ### 4. Git talimatları:
 **Git Yükleme Talimatları:**
