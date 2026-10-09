@@ -103,4 +103,9 @@ IIS HttpPlatformHandler, Waitress sürecini yönetir ve uygulamayı yalnızca `1
 2. `C:\inetpub\sites\AFADTakip` uygulama klasörünü kaldırmadan önce uygulama dosyalarını ve gerekiyorsa logları yedekleyin. Veritabanı ve yüklemeler ayrı olan `C:\ProgramData\AFAD\Takip\data` dizinindedir; bu dizini silmek kullanıcı verisini kalıcı olarak siler.
 3. `AFADTakip` havuzunu yalnızca artık başka hiçbir site kullanmıyorsa kaldırın. Python ve HttpPlatformHandler sunucu genelinde başka uygulamalarca kullanılabileceğinden bunları otomatik kaldırmayın.
 
+## Sorun giderme
+
+- `502.3` veya `appcmd` çıktısında `Unrecognized attribute 'shutdownTimeLimit'` görülürse, IIS Manager'da sitenin fiziksel yolunun `C:\inetpub\sites\AFADTakip` olduğunu doğrulayın. Ardından `web.config` içindeki `httpPlatform` etiketinden `shutdownTimeLimit="30"` özniteliğini kaldırın, dosyayı kaydedip yalnızca `AFAD-GorevTakip` sitesini yeniden başlatın. Bu HttpPlatformHandler sürümü bu özniteliği kabul etmez.
+- `appcmd list config 'AFAD-GorevTakip/' /section:system.webServer/httpPlatform /config:*` çıktısında `processPath` ve `arguments` boş olmamalıdır. Boşsa site fiziksel yolu `web.config` bulunan uygulama dizinine işaret etmiyordur.
+
 Varsayılan kurulum 8085 HTTP kullanır; 80/443 binding'i veya TLS sertifikasını otomatik oluşturmaz. Var olan IIS sitesiyle ortak binding/sertifika üzerine yazılmaz.
